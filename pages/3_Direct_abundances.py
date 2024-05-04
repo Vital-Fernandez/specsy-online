@@ -5,6 +5,7 @@ from tools.sidebar import sidebar_widgets
 from tools.io import declare_line_measuring, parse_frame_normalization, load_emiss_grids
 from tools.plots import lime_spec_plotting
 from tools.operations import parce_direct_method
+from pathlib import Path
 
 # Run the sidebar
 sidebar_widgets()
@@ -13,10 +14,11 @@ sidebar_widgets()
 st.markdown(f'# Direct abundances')
 
 # Read the emissivities
-emiss_db = load_emiss_grids('./resources/data/emissivity_db.nc')
+LOCAL_FOLDER = Path(__file__).parent.parent
+emiss_db = load_emiss_grids(LOCAL_FOLDER/'resources/data/emissivity_db.nc')
 
 # Read chemical fitting
-results_file = './resources/data/SHOC579_results.txt'
+results_file = LOCAL_FOLDER/'resources/data/SHOC579_results.txt'
 df = parse_frame_normalization(results_file)
 
 st.write(df)

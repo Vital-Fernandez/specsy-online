@@ -52,7 +52,7 @@ def set_defaults():
     return
 
 
-@st.cache_data
+@st.cache_resource
 def load_emiss_grids(fname):
     return Innate(fname, x_space=[9000, 20000, 251], y_space=[1, 600, 101])
 
