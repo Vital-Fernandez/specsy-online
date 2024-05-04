@@ -16,7 +16,7 @@ st.markdown(f'# Direct abundances')
 emiss_db = load_emiss_grids('./resources/data/emissivity_db.nc')
 
 # Read chemical fitting
-results_file = '/home/vital/Desktop/SHOC579_results.txt'
+results_file = './resources/data/SHOC579_results.txt'
 df = parse_frame_normalization(results_file)
 
 st.write(df)
