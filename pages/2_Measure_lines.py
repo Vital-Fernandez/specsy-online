@@ -15,27 +15,30 @@ declare_line_measuring()
 
 # Plot the results
 spec = s_state['spec']
+
 if spec.frame is not None:
+    if len(spec.frame.index) > 0:
 
-    st.markdown("***")
+        st.markdown("***")
 
-    tab_spectrum, tab_grid, tab_table = st.tabs(["Spectrum", "Grid plot", "Table"])
+        tab_spectrum, tab_grid, tab_table = st.tabs(["Spectrum", "Grid plot", "Table"])
 
-    with tab_spectrum:
-        st.markdown(f'## Line fittings over-plotted over spectrum')
-        lime_spec_plotting(spec, 'spectrum', rest_frame=True)
+        with tab_spectrum:
+            st.markdown(f'## Line fittings over-plotted over spectrum')
+            lime_spec_plotting(spec, 'spectrum', rest_frame=True)
 
-    with tab_grid:
-        st.markdown(f'## Profile plot grid')
-        lime_spec_plotting(spec, 'grid')
+        with tab_grid:
+            st.markdown(f'## Profile plot grid')
+            fig_conf = {'figure.figsize': (3 * 2, 1.5 + 10 * int(spec.frame.index.size / 3)), 'figure.dpi' : 200}
+            lime_spec_plotting(spec, 'grid', n_cols=2, fig_cfg=fig_conf)
 
-    with tab_table:
-        st.markdown(f'## Measurements table')
-        log_df = spec.frame
-        st.dataframe(log_df)
+        with tab_table:
+            st.markdown(f'## Measurements table')
+            log_df = spec.frame
+            st.dataframe(log_df)
 
-        # Ready for download
-        string_DF = log_df.to_string()
-        table_name = s_state['id'].replace('.fits', '_frame.txt')
-        st.download_button('Download', data=string_DF.encode('UTF-8'), file_name=table_name)
+            # Ready for download
+            string_DF = log_df.to_string()
+            table_name = s_state['id'].replace('.fits', '_frame.txt')
+            st.download_button('Download', data=string_DF.encode('UTF-8'), file_name=table_name)
 

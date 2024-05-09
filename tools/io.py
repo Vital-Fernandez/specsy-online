@@ -10,15 +10,24 @@ import lime
 from lime import load_frame, Spectrum
 from lime.io import parse_lime_cfg
 from specsy import load_frame as load_frame_sy, Innate
+from specsy.innate import load_inference_data
+
+
+# Current path
+LOCAL_FOLDER = Path(__file__).parent
 
 # Resources
-LOGO_PATH = Path('../resources/images/logo.png')
+LOGO_PATH = LOCAL_FOLDER.parent/'resources/images/specsy_logo.PNG'
 INSTRUMENT_LIST = ['SDSS', 'OSIRIS', 'ISIS', 'NIRSPEC', 'MANGA', 'MUSE', 'MEGARA']
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
                        'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
                        'N2_6548A_amp="expr:N2_6584A_amp/2.94"\n'
                        'N2_6548A_kinem="N2_6584A"')
 FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
+EXTINCTION_LAWS = ['G03 LMC', 'CCM89', 'CCM89 Bal07', 'CCM89 oD94', 'S79 H83 CCM89', 'K76', 'SM79 Gal',
+                    'MCC99 FM90 LMC', 'F99-like', 'F99', 'F88 F99 LMC']
+LOW_DIAGS = ['S3_6312A', 'Hagele_2006', 'S2_4069A']
+HIGH_DIAGS = ['O3_4363A', 'Hagele_2006']
 
 # Keys for the platform variables
 DEFAULT_STATES = {'spec': 'No',
@@ -26,7 +35,15 @@ DEFAULT_STATES = {'spec': 'No',
                   'redshift': None,
                   'bands_df': None,
                   'fit_cfg': None,
-                  'frame_df': None}
+                  'frame_df': None,
+                  'particle_list': ['O2_3726A', 'O2_3729A', 'H1_4340A', 'O3_4363A', 'O3_4959A', 'O3_5007A', 'S3_6312A',
+                                    'H1_6563A', 'S2_6716A', 'S2_6731A'],
+                  'redcorr': 'G03 LMC',
+                  'Rv': 3.4,
+                  'low_diag': 'Hagele_2006',
+                  'high_diag': 'O3_4363A',
+                  }
+
 
 
 def save_state(param, value):
@@ -59,16 +76,28 @@ def load_emiss_grids(fname):
 
 @st.cache_data
 def load_logo(file_address=LOGO_PATH):
-    return None#Image.open(file_address)
+    return Image.open(file_address)
 
 
 @st.cache_data
 def load_spectrum(input_file, instrument, redshift, id_label):
 
     z_obj = None if redshift is None else float(redshift)
-    spec = Spectrum.from_file(input_file, instrument, redshift=z_obj, id_label=id_label)
+
+    # To make sure the header redshift is not overwritten if none is provided...
+    kwargs = {}
+    if redshift is not None:
+        kwargs['redshift'] = redshift
+    if id_label is not None:
+        kwargs['id_label'] = id_label
+
+    spec = Spectrum.from_file(input_file, instrument, **kwargs)
 
     return spec
+
+@st.cache_data
+def load_infer_data(file_address):
+    return load_inference_data(file_address)
 
 
 @st.cache_data
@@ -89,7 +118,6 @@ def parse_fit_cfg(conf_string):
 
 @st.cache_data
 def parse_frame_normalization(df):
-
     return load_frame_sy(df, flux_type='profile', norm_line='H1_4861A')
 
 def declare_spectrum():

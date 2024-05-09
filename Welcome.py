@@ -6,7 +6,7 @@ from tools.io import load_logo
 from tools.sidebar import sidebar_widgets
 
 # Resources
-INTRODUCTION_TEXT = r'Welcome to the online site for the Spectra Synthesis tools. '
+INTRODUCTION_TEXT = r'Welcome to the Spectra Synthesis tools, use the sidebar menu to select the treatments.'
 
 # Welcome screen
 def run():
@@ -18,19 +18,19 @@ def run():
 
     # Title
 
-    # Side bar
+    # Sidebar
     st.sidebar.success("Navigate the workflow from the sections above")
     sidebar_widgets()
 
     # CEERs logo and welcome
-    col_logo, col_welcome = st.columns([0.3, 0.7], gap='large')
+    col_logo, col_welcome = st.columns([0.4, 0.6], gap='large')
 
     with col_logo:
         image = load_logo()
-        #st.image(image, width=300)
+        st.image(image, width=300)
 
     with col_welcome:
-        st.markdown(f'# Spectra synthesis')
+        st.markdown(f'# SpecSy')
 
     # Introduction text
     st.markdown("***")

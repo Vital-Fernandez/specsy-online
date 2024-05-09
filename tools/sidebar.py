@@ -17,10 +17,6 @@ def sidebar_widgets():
             st.write(f'{s_state["spec"].label}')
 
         # Show the spectrum
-        st.write(s_state['redshift'])
         if s_state['redshift'] is not None:
             st.write(f'Redshift:')
             st.write(f'{s_state["spec"].redshift:0.3f}')
-
-
-        st.write(s_state)
