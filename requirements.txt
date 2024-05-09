@@ -79,5 +79,5 @@ urllib3==2.2.1
 watchdog==4.0.0
 xarray==2024.3.0
 xarray-einstats==0.7.0
-lime-stable==1.0.3
+lime-stable==1.0.2
 specsy==0.2.8
