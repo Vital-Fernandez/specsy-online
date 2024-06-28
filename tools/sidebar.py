@@ -12,7 +12,7 @@ def sidebar_widgets():
     with st.sidebar:
 
         # Show the spectrum
-        if s_state['spec'] != 'No':
+        if s_state['spec'] is not None:
             st.write(f'Input spectrum:')
             st.write(f'{s_state["spec"].label}')
 

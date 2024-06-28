@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state
 
-from tools.io import declare_spectrum
+from tools.io import declare_spectrum_form
 from tools.plots import plot_spectrum
 from tools.sidebar import sidebar_widgets
 from tools.operations import compute_redshift
@@ -13,10 +13,10 @@ sidebar_widgets()
 # Widget to rea the spectrum
 st.markdown(f'# Load spectrum')
 st.markdown(f'Please declare *.fits* file location and source instrument:')
-declare_spectrum()
+declare_spectrum_form()
 
 # Check file has been uploaded
-if s_state['spec'] != 'No':
+if s_state['spec'] is not None:
 
     spec = s_state['spec']
 

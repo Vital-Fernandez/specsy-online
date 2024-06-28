@@ -1,17 +1,14 @@
 import streamlit as st
 from pathlib import Path
 from PIL import Image
-from astropy.io import fits
 from streamlit import session_state as s_state
 from toml import loads
-from pandas import DataFrame
 
-import lime
 from lime import load_frame, Spectrum
 from lime.io import parse_lime_cfg
 from specsy import load_frame as load_frame_sy, Innate
 from specsy.innate import load_inference_data
-
+from innate import DataSet
 
 # Current path
 LOCAL_FOLDER = Path(__file__).parent
@@ -30,20 +27,29 @@ LOW_DIAGS = ['S3_6312A', 'Hagele_2006', 'S2_4069A']
 HIGH_DIAGS = ['O3_4363A', 'Hagele_2006']
 
 # Keys for the platform variables
-DEFAULT_STATES = {'spec': 'No',
+DEFAULT_STATES = {'spec': None,
                   'id': None,
                   'redshift': None,
                   'bands_df': None,
                   'fit_cfg': None,
                   'frame_df': None,
-                  'particle_list': ['O2_3726A', 'O2_3729A', 'H1_4340A', 'O3_4363A', 'O3_4959A', 'O3_5007A', 'S3_6312A',
-                                    'H1_6563A', 'S2_6716A', 'S2_6731A'],
+                  'emiss_dataset': None,
+                  'particle_list': ['H1_4340A', 'O3_4363A', 'O3_4959A', 'O3_5007A', 'S3_6312A',
+                                    'H1_6563A', 'S2_6716A', 'S2_6731A', 'O2_7319A', 'O2_7330A'],
                   'redcorr': 'G03 LMC',
                   'Rv': 3.4,
                   'low_diag': 'Hagele_2006',
-                  'high_diag': 'O3_4363A',
-                  }
+                  'high_diag': 'O3_4363A'}
 
+
+def set_defaults():
+
+    for item, value in DEFAULT_STATES.items():
+        if f'{item}_hold' not in s_state:
+            s_state[f'{item}_hold'] = value
+        s_state[item] = s_state[f'{item}_hold']
+
+    return
 
 
 def save_state(param, value):
@@ -55,16 +61,6 @@ def save_state(param, value):
 
 def widget_save_state(param):
     s_state[f'{param}_hold'] = s_state[f'{param}']
-
-    return
-
-
-def set_defaults():
-
-    for item, value in DEFAULT_STATES.items():
-        if f'{item}_hold' not in s_state:
-            s_state[f'{item}_hold'] = value
-        s_state[item] = s_state[f'{item}_hold']
 
     return
 
@@ -87,7 +83,7 @@ def load_spectrum(input_file, instrument, redshift, id_label):
     # To make sure the header redshift is not overwritten if none is provided...
     kwargs = {}
     if redshift is not None:
-        kwargs['redshift'] = redshift
+        kwargs['redshift'] = float(redshift)
     if id_label is not None:
         kwargs['id_label'] = id_label
 
@@ -95,76 +91,34 @@ def load_spectrum(input_file, instrument, redshift, id_label):
 
     return spec
 
+
 @st.cache_data
 def load_infer_data(file_address):
     return load_inference_data(file_address)
 
 
-@st.cache_data
 def parse_line_bands_df(uploaded_object):
+    return load_frame(uploaded_object)
 
-    bands_df = load_frame(uploaded_object)
-    save_state('bands_df', bands_df)
 
-    return
+def parse_emiss_dataset(uploaded_object):
+    return DataSet.from_file(uploaded_object)
 
 
 @st.cache_data
 def parse_fit_cfg(conf_string):
-
     dict_toml = loads(conf_string)
-
     return parse_lime_cfg(dict_toml)
+
 
 @st.cache_data
 def parse_frame_normalization(df):
     return load_frame_sy(df, flux_type='profile', norm_line='H1_4861A')
 
-def declare_spectrum():
-
-    # Inputs
-    col_load_spec, col_properties = st.columns([0.6, 0.4], gap='large')
-
-    with col_load_spec:
-        st.markdown(f'### File address')
-        uploaded_file = st.file_uploader("Choose a '.fits' file", type=['.fits'])
-
-    with col_properties:
-        st.markdown(f'### Attributes')
-
-        # Instrument
-        instrument = st.selectbox('Instrument:', INSTRUMENT_LIST)
-        st.write('Selection:', instrument)
-
-        # Redshift
-        z_string = st.text_input('Redshift', value=s_state['redshift'])
-
-    if uploaded_file:
-
-        # Every form must have a submit button.
-        submitted = st.button("Upload", key='button_spec')
-
-        if submitted:
-            # s_state['id'] = uploaded_file.name
-            save_state('id', uploaded_file.name)
-
-            # s_state['spec'] = load_spectrum(uploaded_file, instrument, z_string)
-            save_state('spec', load_spectrum(uploaded_file, instrument, z_string, uploaded_file.name))
-
-    elif uploaded_file is False and s_state != 'No':
-        st.write(f'Please specify a .fits file')
-
-    return
-
 
 def declare_spectrum_form():
 
-    spec = f'No'
-
-    with st.form('load_spec_form', border=True) as f:
-
-        st.markdown(f'# Load spectrum')
-        st.markdown(f'Please declare *.fits* file location and source instrument:')
+    with st.form('load_spec_form', border=True, clear_on_submit=False):
 
         # Inputs
         col_load_spec, col_properties = st.columns([0.6, 0.4], gap='large')
@@ -178,50 +132,78 @@ def declare_spectrum_form():
 
             # Instrument
             instrument = st.selectbox('Instrument:', INSTRUMENT_LIST)
-            st.write('Selection:', instrument)
 
             # Redshift
-            z_string = st.text_input('Redshift', 'None')
+            z_string = st.text_input('Redshift', value=s_state['redshift'])
 
         # Every form must have a submit button.
         submitted = st.form_submit_button("Upload")
 
-        if submitted and (uploaded_file is not None):
-            z_obj = None if z_string == 'None' else float(z_string)
-            spec = Spectrum.from_file(uploaded_file, instrument, redshift=z_obj,
-                                                      id_label='SHOC579')
+        if submitted:
 
-            return spec, 'SHOC579'
+            if uploaded_file:
 
-    return spec, None
+                # s_state['id'] = uploaded_file.name
+                save_state('id', uploaded_file.name)
+
+                # s_state['spec'] = load_spectrum(uploaded_file, instrument, z_string)
+                save_state('spec', load_spectrum(uploaded_file, instrument, z_string, uploaded_file.name))
+
+            else:
+                st.write('Please declare spectrum address')
 
 
-def declare_line_measuring():
+    return
 
-    st.markdown(f'## Load the line bands and fitting configuration:')
 
-    # Two columns for the bands
-    # col_load_bands, col_fitCfg = st.columns([0.4, 0.6], gap='large')
-    tab_bands, tab_conf = st.tabs(["Line bands", "Fitting configuration"])
+def declare_line_bands():
 
-    with tab_bands:
+    with st.form('load_bands_form', border=True, clear_on_submit=False):
+
         st.markdown(f'### Bands file address')
 
         # Get the file
         uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
 
+        # Every form must have a submit button.
+        submitted = st.form_submit_button("Upload")
+
         # Load the dataframe
-        if uploaded_file:
-            parse_line_bands_df(uploaded_file)
+        if submitted:
+            save_state('bands_df', parse_line_bands_df(uploaded_file))
 
-        # Show the dataframe
-        if s_state['bands_df'] is not None:
-            st.dataframe(s_state['bands_df'])
+        else:
+            st.write('Please declare bands file address')
 
-    with tab_conf:
-        st.markdown(f'### Fitting configuration')
-        st.text_area('Please follow .toml style', key='fit_cfg', height=300, placeholder=FIT_CFG_PLACEHOLDER,
-                     on_change=widget_save_state, help=FIT_CFG_HELP, args=("fit_cfg",))
+    return
+
+def declare_atomic_data():
+
+    with st.form('load_emiss_dataset', border=True, clear_on_submit=False):
+
+        st.markdown(f'### Grid file address')
+
+        # Get the file
+        uploaded_file = st.file_uploader("Choose a HDF5 ('.nc') or FITS (.fits) file", type=['.nc', '.fits'])
+
+        # Every form must have a submit button.
+        submitted = st.form_submit_button("Upload")
+
+        # Load the dataframe
+        if submitted:
+            save_state('emiss_dataset', parse_emiss_dataset(uploaded_file))
+
+        else:
+            st.write('Please declare dataset file address')
+
+    return
+
+
+def declare_line_measuring():
+
+    st.markdown(f'### Write the fitting configuration:')
+    st.text_area('Please follow .toml style', key='fit_cfg', height=300, placeholder=FIT_CFG_PLACEHOLDER,
+                 on_change=widget_save_state, help=FIT_CFG_HELP, args=("fit_cfg",))
 
     # Show upload button if inputs are declared
     if (s_state['bands_df'] is not None) and (s_state['fit_cfg'] is not None):
@@ -232,18 +214,19 @@ def declare_line_measuring():
         if submitted:
             if s_state['spec'] is not None:
 
-                if s_state['spec'] is not None:
-                    if uploaded_file:
-                        spec, bands = s_state['spec'], s_state['bands_df']
-                        conf = parse_fit_cfg(s_state['fit_cfg'])
+                spec, bands = s_state['spec'], s_state['bands_df']
+                conf = parse_fit_cfg(s_state['fit_cfg'])
 
-                        # Measuring the lines
-                        my_bar = st.progress(int(spec.fit._i_line), text='Measuring the lines')
-                        spec.fit.frame(bands, fit_conf=conf)
-                        my_bar.empty()
+                # Clear previous measurements
+                spec.frame = spec.frame.iloc[0:0]
 
-                        # Save the dataframe which now contains the measurements
-                        save_state('spec', spec)
+                # Measuring the lines
+                my_bar = st.progress(int(spec.fit._i_line), text='Measuring the lines')
+                spec.fit.frame(bands, fit_conf=conf)
+                my_bar.empty()
+
+                # Save the dataframe which now contains the measurements
+                save_state('spec', spec)
 
             else:
                 st.write('Please upload a spectrum')

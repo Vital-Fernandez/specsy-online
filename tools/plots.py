@@ -1,12 +1,14 @@
 from matplotlib import pyplot as plt
 from bokeh.plotting import figure
-from .io import load_infer_data
 import streamlit as st
 from lime.plots import spectrum_figure_labels, theme as theme_lime
 from specsy.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid
+from .io import load_infer_data
+from innate.plotting import theme as theme_innate
 
 theme_lime.set_style('dark')
 theme_specsy.set_style('dark')
+theme_innate.set_style('dark')
 
 def plot_spectrum(spec):
 
@@ -86,6 +88,16 @@ def specy_infer_plotting(address_db, plot_type):
         fig_cfg = {'figure.figsize': (22, 4), 'figure.dpi': 100,
                    'axes.titlesize': 8}
         plot_flux_grid(infer_db, in_fig=fig, n_cols=2, fig_cfg=fig_cfg)
+
+    st.pyplot(fig, transparent=True)
+
+    return
+
+def matrix_plot(grid):
+
+    fig = plt.figure()#(tight_layout=True, figsize=(8,8), dpi=200)
+    ax_cfg = {'title': grid.label}
+    grid.plot.matrix_diagnostic(in_fig=fig, ax_cfg=ax_cfg)
 
     st.pyplot(fig, transparent=True)
 
