@@ -80,4 +80,5 @@ watchdog==4.0.0
 xarray==2024.3.0
 xarray-einstats==0.7.0
 lime-stable==1.0.3
-specsy==0.2.9
+specsy==0.4.0
+innate==0.1.10
