@@ -1,8 +1,8 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from ..tools.sidebar import sidebar_widgets
-from ..tools.io import declare_line_measuring
-from ..tools.plots import lime_spec_plotting
+from tools.sidebar import sidebar_widgets
+from tools.io import declare_line_measuring
+from tools.plots import lime_spec_plotting
 
 # Run the sidebar
 sidebar_widgets()
