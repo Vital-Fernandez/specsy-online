@@ -1,18 +1,17 @@
 import streamlit as st
-import specsy as sy
+# import specsy as sy
 from pathlib import Path
-from tools.io import load_logo
-
-from tools.sidebar import sidebar_widgets
+from utils.io import load_logo
+from utils.sidebar import sidebar_widgets
 
 # Resources
-INTRODUCTION_TEXT = r'Welcome to the Spectra Synthesis tools, use the sidebar menu to select the treatments.'
+INTRODUCTION_TEXT = r'Welcome to the Spectra Synthesis utils, use the sidebar menu to select the treatments.'
 
 # Welcome screen
 def run():
 
     # Url menus
-    menu_items = {'About': f'## Specsy {sy.__version__} alpha release',
+    menu_items = {#'About': f'## Specsy {sy.__version__} alpha release',
                   'Report a bug': "https://github.com/Vital-Fernandez/specsy"}
     st.set_page_config(page_title="SpecSy", menu_items=menu_items)
 

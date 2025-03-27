@@ -1,9 +1,9 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from tools.sidebar import sidebar_widgets
-from tools.io import declare_atomic_data
+from utils.sidebar import sidebar_widgets
+from utils.io import declare_atomic_data
 from numpy import sort
-from tools.plots import matrix_plot
+from utils.plots import matrix_plot
 
 # Run the sidebar
 sidebar_widgets()

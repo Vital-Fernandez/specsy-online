@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image
 from streamlit import session_state as s_state
 from toml import loads
-
+from pandas import DataFrame
 from lime import load_frame, Spectrum
 from lime.io import parse_lime_cfg
 from specsy import load_frame as load_frame_sy, Innate
@@ -15,7 +15,7 @@ LOCAL_FOLDER = Path(__file__).parent
 
 # Resources
 LOGO_PATH = LOCAL_FOLDER.parent/'resources/images/specsy_logo.PNG'
-INSTRUMENT_LIST = ['SDSS', 'OSIRIS', 'ISIS', 'NIRSPEC', 'MANGA', 'MUSE', 'MEGARA']
+# INSTRUMENT_LIST = ['SDSS', 'OSIRIS', 'ISIS', 'NIRSPEC', 'MANGA', 'MUSE', 'MEGARA']
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
                        'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
                        'N2_6548A_amp="expr:N2_6584A_amp/2.94"\n'
@@ -64,7 +64,6 @@ def widget_save_state(param):
 
     return
 
-
 @st.cache_resource
 def load_emiss_grids(fname):
     return Innate(fname, x_space=[9000, 20000, 251], y_space=[1, 600, 101])
@@ -76,18 +75,28 @@ def load_logo(file_address=LOGO_PATH):
 
 
 @st.cache_data
-def load_spectrum(input_file, instrument, redshift, id_label):
+def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave, units_flux, id_label):
 
-    z_obj = None if redshift is None else float(redshift)
+    # Unit conversion if necessary
+    spec_params = {'redshift': None if redshift is None or redshift == '' else float(redshift),
+                   'id_label': None if id_label is None or id_label == '' else id_label}
 
-    # To make sure the header redshift is not overwritten if none is provided...
-    kwargs = {}
-    if redshift is not None:
-        kwargs['redshift'] = float(redshift)
-    if id_label is not None:
-        kwargs['id_label'] = id_label
+    if norm_flux is not None and redshift != '' :
+        spec_params['norm_flux'] = float(norm_flux)
 
-    spec = Spectrum.from_file(input_file, instrument, **kwargs)
+    if units_wave is not None and units_wave != '' :
+        spec_params['units_wave'] = units_wave
+
+    if units_flux is not None and units_flux != '' :
+        spec_params['units_flux'] = units_flux
+
+    # For observations which provide redshift
+    if instrument in ['SDSS']:
+        spec_params.pop('redshift')
+
+    # Load the object
+    spec = Spectrum.from_file(input_file, instrument, **spec_params)
+    spec.unit_conversion('AA', 'FLAM')
 
     return spec
 
@@ -116,66 +125,76 @@ def parse_frame_normalization(df):
     return load_frame_sy(df, flux_type='profile', norm_line='H1_4861A')
 
 
-def declare_spectrum_form():
+@st.cache_data
+def get_text_spectrum(spec_key):
+    recarray = s_state[spec_key].retrieve.spectrum()
+    return DataFrame.from_records(recarray)
 
-    with st.form('load_spec_form', border=True, clear_on_submit=False):
-
-        # Inputs
-        col_load_spec, col_properties = st.columns([0.6, 0.4], gap='large')
-
-        with col_load_spec:
-            st.markdown(f'### File address')
-            uploaded_file = st.file_uploader("Choose a '.fits' file", type=['.fits'])
-
-        with col_properties:
-            st.markdown(f'### Attributes')
-
-            # Instrument
-            instrument = st.selectbox('Instrument:', INSTRUMENT_LIST)
-
-            # Redshift
-            z_string = st.text_input('Redshift', value=s_state['redshift'])
-
-        # Every form must have a submit button.
-        submitted = st.form_submit_button("Upload")
-
-        if submitted:
-
-            if uploaded_file:
-
-                # s_state['id'] = uploaded_file.name
-                save_state('id', uploaded_file.name)
-
-                # s_state['spec'] = load_spectrum(uploaded_file, instrument, z_string)
-                save_state('spec', load_spectrum(uploaded_file, instrument, z_string, uploaded_file.name))
-
-            else:
-                st.write('Please declare spectrum address')
+@st.cache_data
+def convert_for_download(df):
+    return df.to_csv(index=False).encode("utf-8")
 
 
-    return
+# def declare_spectrum_form():
+#
+#     with st.form('load_spec_form', border=True, clear_on_submit=False):
+#
+#         # Inputs
+#         col_load_spec, col_properties = st.columns([0.6, 0.4], gap='large')
+#
+#         with col_load_spec:
+#             st.markdown(f'### File address')
+#             uploaded_file = st.file_uploader("Choose a '.fits' file", type=['.fits'])
+#
+#         with col_properties:
+#             st.markdown(f'### Attributes')
+#
+#             # Instrument
+#             instrument = st.selectbox('Instrument:', INSTRUMENT_LIST)
+#
+#             # Redshift
+#             z_string = st.text_input('Redshift', value=s_state['redshift'])
+#
+#         # Every form must have a submit button.
+#         submitted = st.form_submit_button("Upload")
+#
+#         if submitted:
+#
+#             if uploaded_file:
+#
+#                 # s_state['id'] = uploaded_file.name
+#                 save_state('id', uploaded_file.name)
+#
+#                 # s_state['spec'] = load_spectrum(uploaded_file, instrument, z_string)
+#                 save_state('spec', load_spectrum(uploaded_file, instrument, z_string, uploaded_file.name))
+#
+#             else:
+#                 st.write('Please declare spectrum address')
+#
+#
+#     return
 
 
-def declare_line_bands():
-
-    with st.form('load_bands_form', border=True, clear_on_submit=False):
-
-        st.markdown(f'### Bands file address')
-
-        # Get the file
-        uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
-
-        # Every form must have a submit button.
-        submitted = st.form_submit_button("Upload")
-
-        # Load the dataframe
-        if submitted:
-            save_state('bands_df', parse_line_bands_df(uploaded_file))
-
-        else:
-            st.write('Please declare bands file address')
-
-    return
+# def declare_line_bands():
+#
+#     with st.form('load_bands_form', border=True, clear_on_submit=False):
+#
+#         st.markdown(f'### Bands file address')
+#
+#         # Get the file
+#         uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
+#
+#         # Every form must have a submit button.
+#         submitted = st.form_submit_button("Upload")
+#
+#         # Load the dataframe
+#         if submitted:
+#             save_state('bands_df', parse_line_bands_df(uploaded_file))
+#
+#         else:
+#             st.write('Please declare bands file address')
+#
+#     return
 
 def declare_atomic_data():
 

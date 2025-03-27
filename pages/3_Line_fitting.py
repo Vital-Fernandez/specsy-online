@@ -1,8 +1,8 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from tools.sidebar import sidebar_widgets
-from tools.io import declare_line_measuring
-from tools.plots import lime_spec_plotting
+from utils.sidebar import sidebar_widgets
+from utils.io import declare_line_measuring
+from utils.plots import lime_spec_plotting, bokeh_spectrum
 
 # Run the sidebar
 sidebar_widgets()
@@ -28,7 +28,8 @@ if spec is not None:
 
             with tab_spectrum:
                 st.markdown(f'## Line fittings over-plotted over spectrum')
-                lime_spec_plotting(spec, 'spectrum', rest_frame=True)
+                bokeh_spectrum(spec)
+                # lime_spec_plotting(spec, 'spectrum', rest_frame=True)
 
             with tab_grid:
                 st.markdown(f'## Profile plot grid')
