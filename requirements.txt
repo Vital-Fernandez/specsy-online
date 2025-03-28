@@ -16,7 +16,6 @@ pytensor~=2.20
 openpyxl~=3.1
 PyLaTeX~=1.4
 streamlit_bokeh==3.6.2
-lime-stable==2.0.dev1
 aspect-stable==0.3.0
 lime-stable==2.0.dev2
 innate-stable==0.2.0
