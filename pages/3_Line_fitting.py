@@ -29,7 +29,6 @@ if spec is not None:
             with tab_spectrum:
                 st.markdown(f'## Line fittings over-plotted over spectrum')
                 bokeh_spectrum(spec)
-                # lime_spec_plotting(spec, 'spectrum', rest_frame=True)
 
             with tab_grid:
                 st.markdown(f'## Profile plot grid')

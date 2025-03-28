@@ -19,4 +19,4 @@ streamlit_bokeh==3.6.2
 aspect-stable==0.3.0
 lime-stable==2.0.dev2
 innate-stable==0.2.0
-specsy==0.6.1
+specsy==0.6.2
