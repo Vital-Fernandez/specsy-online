@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state
 from utils.sidebar import sidebar_widgets
-from utils.io import declare_line_measuring
+from utils.input_output import declare_line_measuring
 from utils.plots import lime_spec_plotting, bokeh_spectrum
 
 # Run the sidebar

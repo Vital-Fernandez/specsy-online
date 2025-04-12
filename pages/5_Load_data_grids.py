@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state
 from utils.sidebar import sidebar_widgets
-from utils.io import declare_atomic_data
+from utils.input_output import declare_atomic_data
 from numpy import sort
 from utils.plots import matrix_plot
 

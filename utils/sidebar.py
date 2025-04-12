@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from .io import set_defaults
+from .input_output import set_defaults
 
 
 def sidebar_widgets():

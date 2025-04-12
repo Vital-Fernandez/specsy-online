@@ -1,12 +1,20 @@
 from matplotlib import pyplot as plt
 from bokeh.plotting import figure
+from bokeh.models import LinearColorMapper
+
 import streamlit as st
 from lime.plotting.format import spectrum_figure_labels, theme as theme_lime
 from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid
-from .io import load_infer_data
+from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
 from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
+from numpy import linspace
+from astropy.io import fits
+
+from astropy.visualization import ZScaleInterval
+
+Z_FUNC_CMAP = ZScaleInterval()
 
 theme_lime.set_style('dark')
 theme_specsy.set_style('dark')
@@ -111,3 +119,32 @@ def bokeh_spectrum(spec, bands=None, fig_cfg=None):
     streamlit_bokeh(fig, key='input_spec')
 
     return
+
+def bokeh_2D_spectrum(wave_array, flux_array, limits=None):
+
+    # Create the image
+    fig_cfg = {'width': 600, 'aspect_ratio': 3, 'tools': 'hover,fullscreen,pan,wheel_zoom,box_zoom,xzoom_in,yzoom_in,reset,save',
+               'toolbar_location':"below", 'tooltips': [("x", "$x"), ("y", "$y")]}
+    fig = figure(**fig_cfg)
+    fig.x_range.range_padding = fig.y_range.range_padding = 0
+
+    # Scale the flux for the visualization
+    display_flux = Z_FUNC_CMAP(flux_array)
+    im_cfg = {'image': [display_flux], 'x': wave_array[0], 'y': 0, 'dw': wave_array[-1]-wave_array[0],
+              'dh': flux_array.shape[0], 'color_mapper':  LinearColorMapper(palette="Inferno256"), 'level': "image"}
+
+    # Add data
+    fig.image(**im_cfg)
+
+    # Format axis
+    fig.xaxis.axis_label = r"$$\mathrm{Wavelength\ (\mu m)}$$"
+    fig.yaxis.axis_label = r'$$\text{Spatial axis (pixels)}$$'
+
+    if limits is not None:
+        fig.ray(x=wave_array[0], y=limits[0], length=wave_array[-1]-wave_array[0], angle=0, color='black', line_width=1, line_dash="dashed")
+        fig.ray(x=wave_array[0], y=limits[1], length=wave_array[-1]-wave_array[0], angle=0, color='black', line_width=1, line_dash="dashed")
+
+    streamlit_bokeh(fig, key='2D_fits_plot')
+
+    return
+

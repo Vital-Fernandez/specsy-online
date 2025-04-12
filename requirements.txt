@@ -15,8 +15,11 @@ pymc~=5.1
 pytensor~=2.20
 openpyxl~=3.1
 PyLaTeX~=1.4
+google-api-python-client~=2.1
 streamlit_bokeh==3.6.2
-aspect-stable==0.3.0
-lime-stable==2.0.dev2
+streamlit-authenticator~=0.4
+st-gsheets-connection~=0.1
+aspect-stable==0.3.1
+lime-stable==2.0.dev3
 innate-stable==0.2.0
 specsy==0.6.3

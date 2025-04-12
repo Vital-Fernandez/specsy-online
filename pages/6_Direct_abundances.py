@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 from utils.sidebar import sidebar_widgets
-from utils.io import EXTINCTION_LAWS, parse_frame_normalization, load_emiss_grids, widget_save_state, LOW_DIAGS, HIGH_DIAGS
+from utils.input_output import EXTINCTION_LAWS, parse_frame_normalization, load_emiss_grids, widget_save_state, LOW_DIAGS, HIGH_DIAGS
 from utils.plots import specy_infer_plotting
 from utils.operations import parce_direct_method
 from pathlib import Path

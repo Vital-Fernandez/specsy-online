@@ -1,39 +1,23 @@
 import streamlit as st
-# import specsy as sy
-from pathlib import Path
-from utils.io import load_logo
-from utils.sidebar import sidebar_widgets
-
-# Resources
-INTRODUCTION_TEXT = r'Welcome to the Spectra Synthesis utils, use the sidebar menu to select the treatments.'
 
 # Welcome screen
 def run():
 
-    # Url menus
-    menu_items = {#'About': f'## Specsy {sy.__version__} alpha release',
-                  'Report a bug': "https://github.com/Vital-Fernandez/specsy"}
-    st.set_page_config(page_title="SpecSy", menu_items=menu_items)
+    # Menu pages
+    pages = {"Welcome": [st.Page("pages/0_introduction.py", title="Introduction")],
 
-    # Title
+             "Spectroscopic data": [st.Page("pages/1_Load_spectrum.py", title="Load observation"),
+                              st.Page("pages/2_Load_collaboration.py", title="Collaborations")],
 
-    # Sidebar
-    st.sidebar.success("Navigate the workflow from the sections above")
-    sidebar_widgets()
+             "Line analysis":    [st.Page("pages/3_Load_line_bands.py", title="Line bands"),
+                                  st.Page("pages/4_Line_fitting.py", title="Fitting configuration"), ],
 
-    # CEERs logo and welcome
-    col_logo, col_welcome = st.columns([0.4, 0.6], gap='large')
+             "Chemical analysis": [st.Page("pages/5_Load_data_grids.py", title="Emissivity grids"),
+                                   st.Page("pages/6_Direct_abundances.py", title="Direct method"),
+                                   st.Page("pages/7_Photo-ionization_modelling.py", title="Photoionization models"), ],}
 
-    with col_logo:
-        image = load_logo()
-        st.image(image, width=300)
-
-    with col_welcome:
-        st.markdown(f'# SpecSy')
-
-    # Introduction text
-    st.markdown("***")
-    st.markdown(INTRODUCTION_TEXT, unsafe_allow_html=True)
+    pg = st.navigation(pages)
+    pg.run()
 
     return
 
@@ -41,4 +25,5 @@ def run():
 if __name__ == "__main__":
 
     run()
+
 
