@@ -9,6 +9,7 @@ from utils.plots import bokeh_spectrum, bokeh_2D_spectrum
 from lime.archives.read_fits import load_fits
 from lime.tools import pd_get
 from numpy import linspace
+from pandas import notna
 
 def object_description(input_df, idx_obj):
 
@@ -128,6 +129,7 @@ def capers_selection():
            f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the parameters description.')
     st.write(msg)
 
+
     # Connect to the online spreadsheet
     conn = st.connection("capers", type=GSheetsConnection)
     index_list = ['sample', 'id', 'file']
@@ -213,7 +215,10 @@ def capers_selection():
 
             if file1d_bytes is not None:
                 st.info('1D spectrum located')
-                spec = load_spectrum(file1d_bytes, 'nirspec', 0, None, wave_units_str, flux_units_str, None)
+                row = df_selection.loc[tuple(idx_1d_target)]
+                z_obj = next((row[col] for col in ['z_gaussian', 'z_aspect_key', 'z_UNICORN'] if notna(row[col])), None)
+
+                spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, None, wave_units_str, flux_units_str, None)
                 save_state('spec', spec)
             else:
                 st.warning('1D spectrum was not located')
