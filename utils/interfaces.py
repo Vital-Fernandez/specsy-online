@@ -4,9 +4,9 @@ from streamlit import session_state as s_state,secrets
 from streamlit_gsheets import GSheetsConnection
 from numpy import floor, ceil, intersect1d, sum
 from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, widget_save_state, get_text_spectrum,
-                           convert_for_download, find_file_in_folder, download_binary_file, widget_text_to_list)
+                           convert_for_download, widget_text_to_list)
 from numpy import unique, sort
-from .plots import bokeh_spectrum, bokeh_bands
+from .plots import bokeh_spectrum
 from lime.transitions import au
 
 INSTRUMENT_LIST = ['SDSS', 'OSIRIS', 'ISIS', 'NIRSPEC', 'TEXT']
@@ -288,7 +288,7 @@ def match_bands_tab():
                                          particle_list=None if len(particle_selection) == 0 else particle_selection,
                                          vacuum_waves=vacuum_check,
                                          components_detection=components_check,
-                                         adjust_central_bands=adjust_central_bands,
+                                         adjust_central_band=adjust_central_bands,
                                          band_vsigma=None if v_bands_str is None else float(v_bands_str),
                                          n_sigma=None if n_sigma_str is None else float(n_sigma_str),
                                          instrumental_correction=instr_corr_check,
@@ -366,27 +366,26 @@ def bands_review():
         # Adjust
         st.markdown('')
         st.markdown(f'##### Manual adjustment:')
-        st.markdown(f'The widgets below can be used to manually change the cell values or delete rows. Please try to fill'
-                    f' all columns.')
+        st.markdown(f'The widgets below can be used to manually change the cell values or delete rows.')
 
         tab_all, tab_single = st.tabs(["All", "Individual"])
-        with tab_single:
-            help_message = 'Select one line to modify and visualize'
-            input_line = st.selectbox('Line', bands.index, index=0, key=None, help=help_message)
-            st.data_editor(bands.loc[input_line], num_rows="dynamic", on_change=widget_save_state, args=("bands_df",))
-            bokeh_bands(s_state['spec'], input_line, bands)
-
         with tab_all:
             save_state('bands_df', st.data_editor(bands, num_rows="dynamic", on_change=widget_save_state, args=("bands_df",)))
+            bokeh_spectrum(s_state['spec'], bands)
 
-            spec = s_state['spec']
-
-            # Figure configuration
-            bokeh_spectrum(spec, bands)
+        with tab_single:
+            # if bands.index.size > 0:
+            #     help_message = 'Select one line to modify and visualize'
+            #     input_line = st.selectbox('Line', bands.index, index=0, key=None, help=help_message)
+            #     st.data_editor(bands.loc[input_line], num_rows="dynamic", on_change=widget_save_state, args=("bands_df",))
+            #     bokeh_bands(s_state['spec'], input_line, bands)
+            # else:
+            #     st.write('No lines in input bands')
+            st.markdown('Not implemented')
 
         st.markdown('')
         st.markdown('***')
-        st.markdown(f'Download line bands selection to a text file.')
+        st.markdown(f'Save bands selection to a text file.')
         string_DF = s_state.get('bands_df').to_string()
         table_name = s_state['id'] + '_bands.txt'
         st.download_button('Download', data=string_DF.encode('UTF-8'), file_name=table_name)

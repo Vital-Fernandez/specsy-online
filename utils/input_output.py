@@ -50,7 +50,7 @@ DEFAULT_STATES = {'spec': None,
                   'high_diag': 'O3_4363A',
 
                   # CAPERs
-                  "sample_list": ['CAPERS_EGS_V0.2'],
+                  "sample_list": ['CAPERS_EGS_V0.2.1', 'CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2'],
                   "mpt_list": None,
                   "z_range": None,
                   "z_limits": None,
@@ -80,6 +80,18 @@ def widget_save_state(param):
 
     return
 
+def clear_inputs_state(reset_defaults=True):
+    s_state.clear()
+
+    if reset_defaults:
+        set_defaults()
+
+    return
+
+def clear_inputs_button():
+    st.button('Clear input data', on_click=clear_inputs_state, icon=":material/delete:")
+    return
+
 @st.cache_resource
 def load_emiss_grids(fname):
     return Innate(fname, x_space=[9000, 20000, 251], y_space=[1, 600, 101])
@@ -99,12 +111,6 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave, units
 
     if norm_flux is not None and redshift != '' :
         spec_params['norm_flux'] = float(norm_flux)
-
-    # if units_wave is not None and units_wave != '' :
-    #     units_wave = units_wave
-    #
-    # if units_flux is not None and units_flux != '' :
-    #     units_flux = units_flux
 
     # For observations which provide redshift
     if instrument in ['SDSS']:
@@ -177,9 +183,6 @@ def declare_atomic_data():
         if submitted:
             save_state('emiss_dataset', parse_emiss_dataset(uploaded_file))
 
-        else:
-            st.write('Please declare dataset file address')
-
     return
 
 
@@ -206,7 +209,7 @@ def declare_line_measuring():
 
                 # Measuring the lines
                 my_bar = st.progress(int(spec.fit._i_line), text='Measuring the lines')
-                spec.fit.frame(bands, fit_conf=conf)
+                spec.fit.frame(bands, fit_cfg=conf)
                 my_bar.empty()
 
                 # Save the dataframe which now contains the measurements

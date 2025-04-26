@@ -1,15 +1,16 @@
 import streamlit as st
-from streamlit import session_state as s_state,secrets
+from streamlit import session_state as s_state, secrets
 from streamlit_gsheets import GSheetsConnection
-from numpy import floor, ceil, intersect1d, sum, array
+from numpy import floor, ceil, intersect1d, sum, array, linspace, sort
+from pandas import notna, notnull
+from pathlib import Path
+
+from lime.tools import pd_get
+from lime.archives.read_fits import load_fits
+
 from utils.interfaces import widget_text_to_list, unit_conversion_inputs
 from utils.input_output import save_objSample, save_state, gdrive_service, download_from_path, hdr_to_df, load_spectrum
-from numpy import sort
 from utils.plots import bokeh_spectrum, bokeh_2D_spectrum
-from lime.archives.read_fits import load_fits
-from lime.tools import pd_get
-from numpy import linspace
-from pandas import notna
 
 def object_description(input_df, idx_obj):
 
@@ -25,8 +26,8 @@ def object_description(input_df, idx_obj):
     with col1:
         format_hdr = f'**<span style="color:#C69B6D;font-weight:bold;">Identification</span>**'
         st.write(format_hdr, unsafe_allow_html=True)
-        msg = f'\n\n**Pointing:** {input_df.loc[idx_obj].pointing.values[0]}'
-        msg += f'\n\n**Extraction:** {input_df.loc[idx_obj].ext.values[0]}'
+        msg = f'\n\n**Pointing:** {input_df.loc[idx_obj].index.names[2]}'
+        msg += f'\n\n**Optimal extraction:** {input_df.loc[idx_obj, "optext"].values[0]}'
         msg += f'\n\n**Sample:** {input_df.loc[idx_obj].index.values[0][0]}'
         st.markdown(msg)
 
@@ -35,11 +36,11 @@ def object_description(input_df, idx_obj):
         st.write(format_hdr, unsafe_allow_html=True)
         # 'flux_F277W', 'flux_F356W', 'flux_F444W'
         tupple_index = tuple(idx_obj)[0]
-        msg = f'**F277W:** {pd_get(input_df, tupple_index, "flux_F277W", default="Not available")}'
-        msg += f'\n\n**F356W:** {pd_get(input_df, tupple_index, "flux_F356W", default="Not available")}'
-        msg += f'\n\n**F444W:** {pd_get(input_df, tupple_index, "flux_F444W", default="Not available")}'
-        msg += f'\n\n**F606W:** {pd_get(input_df, tupple_index, "flux_F606W", default="Not available")}'
-        msg += f'\n\n**F814W:** {pd_get(input_df, tupple_index, "flux_F814W", default="Not available")}'
+        msg = f'**F277W:** {pd_get(input_df, tupple_index, "flux_f277w", default="Not available")}'
+        msg += f'\n\n**F356W:** {pd_get(input_df, tupple_index, "flux_f356w", default="Not available")}'
+        msg += f'\n\n**F444W:** {pd_get(input_df, tupple_index, "flux_f444w", default="Not available")}'
+        msg += f'\n\n**F606W:** {pd_get(input_df, tupple_index, "flux_f606w", default="Not available")}'
+        msg += f'\n\n**F814W:** {pd_get(input_df, tupple_index, "flux_f814w", default="Not available")}'
         st.markdown(msg)
 
     with col3:
@@ -47,7 +48,7 @@ def object_description(input_df, idx_obj):
         st.write(format_hdr, unsafe_allow_html=True)
         msg = f'\n\n**z_UNICORN:** {input_df.loc[idx_obj].z_UNICORN.values[0]}'
         msg += f'\n\n**z_Aspect:** {input_df.loc[idx_obj].z_aspect_key.values[0]}'
-        msg += f'\n\n**z_LiMe:** {input_df.loc[idx_obj].z_gaussian.values[0]:0.3f}'
+        msg += f'\n\n**z_LiMe:** {input_df.loc[idx_obj].z_manual.values[0]:0.3f}'
         st.markdown(msg)
 
     return
@@ -129,11 +130,10 @@ def capers_selection():
            f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the parameters description.')
     st.write(msg)
 
-
     # Connect to the online spreadsheet
     conn = st.connection("capers", type=GSheetsConnection)
-    index_list = ['sample', 'id', 'file']
-    df = conn.read(ttl=None, index_col=index_list, header=0)
+    index_list = ['sample', 'id', 'pointing']
+    df = conn.read(ttl=None, index_col=index_list, header=0, sep=',')
     df.index.names = index_list
 
     # Widgets to adjust selection
@@ -144,8 +144,20 @@ def capers_selection():
 
     # Display the sheet
     st.caption("")
-    st.caption("Use the table tools to expand the table, hide columns or download the data")
-    st.dataframe(df.loc[idcs_selection])
+    st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download the data.")
+    default_tab, obser_tab, z_tab, files_tab = st.tabs(['ID', 'Observation', 'Redshift', 'Files'])
+    with default_tab:
+        column_order = ['MPT_number', 'ra', 'dec', 'disp', 'Notes']
+        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+    with obser_tab:
+        column_order = ['MPT_number', 'MSA_weight', 'n_nods_vis1', 'n_nods_vis2', 'n_nods_vis3', 'eff_exp_time', 'shutter_centering']
+        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+    with z_tab:
+        column_order = ['MPT_number', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian']
+        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+    with files_tab:
+        column_order = ['MPT_number', 's2d', 'x1d', 'optext']
+        st.dataframe(df.loc[idcs_selection], column_order=column_order)
 
     # Download spectra
     st.markdown("***")
@@ -153,8 +165,7 @@ def capers_selection():
 
     # Cropped df
     df_selection = df.loc[idcs_selection]
-
-    msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{idcs_selection.sum()} files</span> '
+    msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{idcs_selection.sum()} objects</span> '
            f' use the menus below to load the spectra from an individual source.')
     st.write(msg, unsafe_allow_html=True)
 
@@ -162,27 +173,24 @@ def capers_selection():
     msa_unique = sort(df_selection.MPT_number.unique().astype(int))
     help_msg = 'Select the object'
     obj = st.selectbox('Object MSA', options=msa_unique, help=help_msg)
+    idcs_obj = df_selection.MPT_number == obj
 
     # 1D selection
-    idcs_obj = df_selection.MPT_number == obj
-    idcs_1d = idcs_obj & (df_selection.ext.isin(['x1d', 'optext']))
-    file1d_list = df_selection.loc[idcs_1d].index.get_level_values('file').to_numpy()
-    file1d_list = array(sorted(file1d_list, key=lambda x: 'optext' not in x))
-
+    file1d_list = df_selection.loc[idcs_obj, ['optext', 'x1d']].to_numpy()
+    file1d_list = file1d_list[notnull(file1d_list)]
     help_msg = 'Select the 1D spectrum to download'
     file1d = st.selectbox('1D spectrum file', options=file1d_list, help=help_msg)
-    idx_1d_target = df_selection[df_selection.index.get_level_values('file') == file1d].index
+    ext1D = 'optext' if 'optext' in file1d else 'x1d'
+    idx_1D = idcs_obj & df_selection.loc[idcs_obj, ext1D].index
 
     # 2D selection
-    idcs_2d = idcs_obj & (df_selection.ext == 's2d')
-    file2d_list = df_selection.loc[idcs_2d].index.get_level_values('file').to_numpy()
-
+    file2d_list = df_selection.loc[idcs_obj, 's2d'].to_numpy()
     help_msg = 'Select the 2D spectrum to download'
     file2d = st.selectbox('2D spectrum file', options=file2d_list, help=help_msg)
-    idx_2d_target = df_selection[df_selection.index.get_level_values('file') == file2d].index
+    idx_2D = idcs_obj & df_selection.loc[idcs_obj, 's2d'].index
 
-    full_path1d = f"{s_state['username'].upper()}/{df_selection.loc[idx_1d_target, 'file_path'].values[0]}"
-    full_path2d = f"{s_state['username'].upper()}/{df_selection.loc[idx_2d_target, 'file_path'].values[0]}"
+    full_path1d = f"{s_state['username'].upper()}/{df_selection.loc[idx_1D, 'file_path'].values[0]}/{file1d}"
+    full_path2d = f"{s_state['username'].upper()}/{df_selection.loc[idx_2D, 'file_path'].values[0]}/{file2d}"
 
     # Import spectra
     with st.form('load_capers', border=False, enter_to_submit=False, clear_on_submit=False):
@@ -215,11 +223,15 @@ def capers_selection():
 
             if file1d_bytes is not None:
                 st.info('1D spectrum located')
-                row = df_selection.loc[tuple(idx_1d_target)]
-                z_obj = next((row[col] for col in ['z_gaussian', 'z_aspect_key', 'z_UNICORN'] if notna(row[col])), None)
+
+                # Recover redshift from type priority
+                row = df_selection.loc[idx_1D]
+                z_obj = next((row[col].values[0] for col in ['z_gaussian', 'z_manual', 'z_aspect_key', 'z_UNICORN'] if notna(row[col].values)), None)
 
                 spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, None, wave_units_str, flux_units_str, None)
                 save_state('spec', spec)
+                save_state('id', Path(file1d).stem)
+
             else:
                 st.warning('1D spectrum was not located')
 
@@ -232,16 +244,18 @@ def capers_selection():
     if spec is not None:
 
         # Object information
-        object_description(df, idx_1d_target)
+        object_description(df_selection, idx_1D)
 
         st.write(f'#### 1D spectrum')
         plot_tab, objSheet_tab = st.tabs(['Plot', 'CAPERs data'])
 
         with plot_tab:
+            st.write(" ")
             bokeh_spectrum(spec)
 
         with objSheet_tab:
-            st.dataframe(df_selection.loc[idx_1d_target].T)
+            st.write(" ")
+            st.dataframe(df_selection.loc[idx_1D].T)
 
     # 2D spectrum display
     if fits_2d is not None:

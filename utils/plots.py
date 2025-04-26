@@ -84,11 +84,11 @@ def bokeh_bands(spec, line, bands=None, fig_cfg=None):
 
     with col1:
         label = f'Rest frame (z = {spec.redshift:0.3f})'
-        rest_frame = st.toggle(label, value=False, key='rest_frame_check1', help='Display the observation in the observer rest frame.')
+        rest_frame = st.toggle(label, value=False, key='rest_frame_check1', help='Display the spectrum in the rest frame.')
 
     with col2:
         log_scale = st.toggle("Log scale", value=True, key='log_scale_check1',
-                              help='Display the observation in the observer rest frame.')
+                              help='Display the spectrum in logarithmic scale.')
 
     fig_cfg = {'width':450, 'height':250} if fig_cfg is None else fig_cfg
     fig = spec.bokeh.bands(line, return_fig=True, ref_bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale)
@@ -96,26 +96,31 @@ def bokeh_bands(spec, line, bands=None, fig_cfg=None):
 
     return
 
-def bokeh_spectrum(spec, bands=None, fig_cfg=None):
+def bokeh_spectrum(spec, bands=None, fig_cfg=None, default_show_fits=True):
 
     # Columns for the widgets
-    col1, col2, col3 = st.columns([0.3, 0.3, 0.3], gap="small", vertical_alignment="top", border=False)
+    col0, col1, col2, col3, col4 = st.columns([0.15, 0.25, 0.2, 0.2, 0.2], gap="small", vertical_alignment='center', border=False)
 
     with col1:
-        label = f'Rest frame (z = {spec.redshift:0.3f})'
-        rest_frame = st.toggle(label, value=False, key='rest_frame_check', help='Display the observation in the observer rest frame.')
-
+        label = f"Rest frame (z = {spec.redshift:0.3f})"
+        rest_frame = st.checkbox(label, value=False, key='rest_frame_check',
+                               help='Display the observation in the observer rest frame.')
     with col2:
-        log_scale = st.toggle("Log scale", value=False, key='log_scale_check',
-                              help='Display the observation in the observer rest frame.')
-
+        log_scale = st.checkbox("Log scale", value=False, key='log_scale_check',
+                              help='Display the spectrum in logaritmic scale.')
     with col3:
-        comps_scale = st.toggle("Show Components", value=False, key='components_check',
-                                help='Show spectral components if detected.')
-
-    fig_cfg = {'width':450, 'height':250} if fig_cfg is None else fig_cfg
+        comps_scale = st.checkbox("Show Components", value=False, key='components_check',
+                                help='Show spectrum components.')
+    with col4:
+        comps_err = st.checkbox("Show uncertainty", value=False, key='show_err_check',
+                                help='Show spectrum flux uncertainty.')
+    st.write("")
+    #     fig.xaxis.major_label_text_font_size = "14pt"
+    fig_cfg = {'width':450, 'height':250,
+               "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
+               "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}} if fig_cfg is None else fig_cfg
     fig = spec.bokeh.spectrum(return_fig=True, bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
-                              include_components=comps_scale)
+                              include_components=comps_scale, include_fits=default_show_fits, show_err=comps_err)
     streamlit_bokeh(fig, key='input_spec')
 
     return
@@ -138,7 +143,11 @@ def bokeh_2D_spectrum(wave_array, flux_array, limits=None):
 
     # Format axis
     fig.xaxis.axis_label = r"$$\mathrm{Wavelength\ (\mu m)}$$"
+    fig.xaxis.axis_label_text_font_size = "16pt"
+    fig.xaxis.major_label_text_font_size = "14pt"
     fig.yaxis.axis_label = r'$$\text{Spatial axis (pixels)}$$'
+    fig.yaxis.axis_label_text_font_size = "16pt"
+    fig.yaxis.major_label_text_font_size = "14pt"
 
     if limits is not None:
         fig.ray(x=wave_array[0], y=limits[0], length=wave_array[-1]-wave_array[0], angle=0, color='black', line_width=1, line_dash="dashed")

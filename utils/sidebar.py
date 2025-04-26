@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from .input_output import set_defaults
+from .input_output import set_defaults, clear_inputs_button
+
 
 
 def sidebar_widgets():
@@ -20,3 +21,6 @@ def sidebar_widgets():
         if s_state['redshift'] is not None:
             st.write(f'Redshift:')
             st.write(f'{s_state["spec"].redshift:0.3f}')
+
+        # Clear option
+        clear_inputs_button()
