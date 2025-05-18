@@ -1,16 +1,30 @@
 import streamlit as st
 from streamlit import session_state as s_state, secrets
-from streamlit_gsheets import GSheetsConnection
 from numpy import floor, ceil, intersect1d, sum, array, linspace, sort
 from pandas import notna, notnull
 from pathlib import Path
 
+import lime
 from lime.tools import pd_get
 from lime.archives.read_fits import load_fits
 
 from utils.interfaces import widget_text_to_list, unit_conversion_inputs
 from utils.input_output import save_objSample, save_state, gdrive_service, download_from_path, hdr_to_df, load_spectrum
+from utils.input_output import read_collaboration_file_log, read_collaboration_flux_log, clear_obj_data
 from utils.plots import bokeh_spectrum, bokeh_2D_spectrum
+
+
+def read_flux_measurements(obj_series, obj_file, flux_sample):
+
+    idx_flux = (obj_series.index[0][0], obj_series.iloc[0].MPT_number, obj_file)
+    flux_df = flux_sample.xs(idx_flux, level=['sample', 'id', 'file'], drop_level=True)
+    flux_df.index.name = None
+
+    if flux_df.index.size == 0:
+        flux_df = None
+
+    return flux_df
+
 
 def object_description(input_df, idx_obj):
 
@@ -53,6 +67,7 @@ def object_description(input_df, idx_obj):
 
     return
 
+
 def widgets_selection(input_df):
 
 
@@ -87,6 +102,7 @@ def widgets_selection(input_df):
 
     return
 
+
 def indexing_sheets(input_df, ref_redshift='z_UNICORN'):
 
     # Sample indexing
@@ -117,6 +133,7 @@ def indexing_sheets(input_df, ref_redshift='z_UNICORN'):
 
     return idcs
 
+
 def capers_selection():
 
     # Title
@@ -130,17 +147,15 @@ def capers_selection():
            f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the parameters description.')
     st.write(msg)
 
-    # Connect to the online spreadsheet
-    conn = st.connection("capers", type=GSheetsConnection)
-    index_list = ['sample', 'id', 'pointing']
-    df = conn.read(ttl=None, index_col=index_list, header=0, sep=',')
-    df.index.names = index_list
+    # Connect to the online spreadsheets
+    files_df = read_collaboration_file_log('capers')
+    flux_df = read_collaboration_flux_log('capers')
 
     # Widgets to adjust selection
-    widgets_selection(df)
+    widgets_selection(files_df)
 
     # Get indexes of entry in sheet
-    idcs_selection = indexing_sheets(df)
+    idcs_selection = indexing_sheets(files_df)
 
     # Display the sheet
     st.caption("")
@@ -148,23 +163,23 @@ def capers_selection():
     default_tab, obser_tab, z_tab, files_tab = st.tabs(['ID', 'Observation', 'Redshift', 'Files'])
     with default_tab:
         column_order = ['MPT_number', 'ra', 'dec', 'disp', 'Notes']
-        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
     with obser_tab:
         column_order = ['MPT_number', 'MSA_weight', 'n_nods_vis1', 'n_nods_vis2', 'n_nods_vis3', 'eff_exp_time', 'shutter_centering']
-        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
     with z_tab:
         column_order = ['MPT_number', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian']
-        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
     with files_tab:
         column_order = ['MPT_number', 's2d', 'x1d', 'optext']
-        st.dataframe(df.loc[idcs_selection], column_order=column_order)
+        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
 
     # Download spectra
     st.markdown("***")
     st.markdown(f'### Import *.fits* file')
 
     # Cropped df
-    df_selection = df.loc[idcs_selection]
+    df_selection = files_df.loc[idcs_selection]
     msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{idcs_selection.sum()} objects</span> '
            f' use the menus below to load the spectra from an individual source.')
     st.write(msg, unsafe_allow_html=True)
@@ -204,6 +219,10 @@ def capers_selection():
 
         if submitted:
 
+            # Clear the previous data
+            clear_obj_data()
+
+            # Connect to drive
             service = gdrive_service(s_state["username"])
 
             # Download the 2D spectrum
@@ -228,7 +247,17 @@ def capers_selection():
                 row = df_selection.loc[idx_1D]
                 z_obj = next((row[col].values[0] for col in ['z_gaussian', 'z_manual', 'z_aspect_key', 'z_UNICORN'] if notna(row[col].values)), None)
 
+                # Get spectrum
                 spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, None, wave_units_str, flux_units_str, None)
+                obj_flux = read_flux_measurements(row, file1d, flux_df)
+
+                # Get line measurements
+                if obj_flux is not None:
+                    spec.load_frame(obj_flux)
+                    save_state('lines_df', obj_flux)
+                    save_state('bands_df', lime.bands_from_measurements(obj_flux))
+
+                # Save the data
                 save_state('spec', spec)
                 save_state('id', Path(file1d).stem)
 
@@ -251,7 +280,7 @@ def capers_selection():
 
         with plot_tab:
             st.write(" ")
-            bokeh_spectrum(spec)
+            bokeh_spectrum('spec')
 
         with objSheet_tab:
             st.write(" ")

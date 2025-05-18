@@ -1,7 +1,11 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
+from streamlit import session_state as s_state, secrets
+import streamlit_authenticator as stauth
+import streamlit.components.v1 as components
+
 from pathlib import Path
 from PIL import Image
-from streamlit import session_state as s_state, secrets
 from toml import loads
 from pandas import DataFrame
 from lime import load_frame, Spectrum
@@ -9,27 +13,24 @@ from lime.io import parse_lime_cfg
 from specsy import load_frame as load_frame_sy, Innate
 from specsy.innate import load_inference_data
 from innate import DataSet
-import streamlit_authenticator as stauth
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from io import BytesIO
 from googleapiclient.http import MediaIoBaseDownload
-from numpy import array, linspace
-from astropy.io import fits
+from numpy import array
+from typing import Union, List, Dict
+import base64
+import json
 
 # Current path
 LOCAL_FOLDER = Path(__file__).parent
 
 # Resources
 LOGO_PATH = LOCAL_FOLDER.parent/'resources/images/specsy_logo.PNG'
-# INSTRUMENT_LIST = ['SDSS', 'OSIRIS', 'ISIS', 'NIRSPEC', 'MANGA', 'MUSE', 'MEGARA']
-FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
-                       'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
-                       'N2_6548A_amp="expr:N2_6584A_amp/2.94"\n'
-                       'N2_6548A_kinem="N2_6584A"')
-FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
+
 EXTINCTION_LAWS = ['G03 LMC', 'CCM89', 'CCM89 Bal07', 'CCM89 oD94', 'S79 H83 CCM89', 'K76', 'SM79 Gal',
                     'MCC99 FM90 LMC', 'F99-like', 'F99', 'F88 F99 LMC']
+
 LOW_DIAGS = ['S3_6312A', 'Hagele_2006', 'S2_4069A']
 HIGH_DIAGS = ['O3_4363A', 'Hagele_2006']
 
@@ -38,8 +39,8 @@ DEFAULT_STATES = {'spec': None,
                   'id': None,
                   'redshift': None,
                   'bands_df': None,
+                  'lines_df': None,
                   'fit_cfg': None,
-                  'frame_df': None,
                   'emiss_dataset': None,
                   'particle_list': ['H1_4340A', 'O3_4363A', 'O3_4959A', 'O3_5007A', 'S3_6312A',
                                     'H1_6563A', 'S2_6716A', 'S2_6731A', 'O2_7319A', 'O2_7330A'],
@@ -48,6 +49,9 @@ DEFAULT_STATES = {'spec': None,
                   'Rv': 3.4,
                   'low_diag': 'Hagele_2006',
                   'high_diag': 'O3_4363A',
+
+                  # Intermediate steps
+                  "in_bands": None,
 
                   # CAPERs
                   "sample_list": ['CAPERS_EGS_V0.2.1', 'CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2'],
@@ -80,6 +84,7 @@ def widget_save_state(param):
 
     return
 
+
 def clear_inputs_state(reset_defaults=True):
     s_state.clear()
 
@@ -88,9 +93,76 @@ def clear_inputs_state(reset_defaults=True):
 
     return
 
+
 def clear_inputs_button():
     st.button('Clear input data', on_click=clear_inputs_state, icon=":material/delete:")
     return
+
+
+def clear_obj_data():
+
+    for item in ['spec', 'id', 'redshift', 'bands_df', 'lines_df']:
+        s_state[item] = None
+        s_state[f'{item}_hold'] = None
+
+    return
+
+
+def get_user_parameters(username: str, params: Union[str, List[str]]) -> Union[None, Dict[str, str], str]:
+
+    """
+    Retrieve one or more user-specific parameters from Streamlit secrets using the username.
+
+    Parameters
+    ----------
+    username : str
+        The key in `secrets.collaborations.credentials.usernames`.
+
+    params : str or list of str
+        One or more parameter names to retrieve.
+
+    Returns
+    -------
+    dict or str or None
+        - If one parameter is requested: returns a string or None.
+        - If multiple parameters are requested: returns a dict {param: value}.
+        - Returns None if username not found or secrets structure is invalid.
+
+    """
+
+    user_data = st.secrets.collaborations.credentials.usernames.get(username)
+    if not user_data:
+        return None
+
+    if isinstance(params, str):
+        return user_data.get(params)
+    else:
+        return {param: user_data.get(param) for param in params}
+
+
+@st.cache_resource
+def read_collaboration_file_log(collaboration_name):
+
+    conn = st.connection(collaboration_name, type=GSheetsConnection)
+    sheet_name = get_user_parameters('capers', 'file_sheet')
+    index_list = ['sample', 'id', 'pointing']
+    df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=index_list, header=0, sep=',')
+    df.index.names = index_list
+
+    return df
+
+
+@st.cache_resource
+def read_collaboration_flux_log(collaboration_name):
+
+    conn = st.connection(collaboration_name, type=GSheetsConnection)
+    sheet_name = get_user_parameters('capers', 'flux_sheet')
+    index_list = ['sample', 'id', 'file', 'line']
+    df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=index_list, header=0, sep=',')
+    df.index.names = index_list
+
+    return df
+
 
 @st.cache_resource
 def load_emiss_grids(fname):
@@ -185,40 +257,6 @@ def declare_atomic_data():
 
     return
 
-
-def declare_line_measuring():
-
-    st.markdown(f'### Write the fitting configuration:')
-    st.text_area('Please follow .toml style', key='fit_cfg', height=300, placeholder=FIT_CFG_PLACEHOLDER,
-                 on_change=widget_save_state, help=FIT_CFG_HELP, args=("fit_cfg",))
-
-    # Show upload button if inputs are declared
-    if (s_state['bands_df'] is not None) and (s_state['fit_cfg'] is not None):
-
-        # Every form must have a submit button.
-        submitted = st.button("Fit lines", key='button_bands')
-
-        if submitted:
-            if s_state['spec'] is not None:
-
-                spec, bands = s_state['spec'], s_state['bands_df']
-                conf = parse_fit_cfg(s_state['fit_cfg'])
-
-                # Clear previous measurements
-                spec.frame = spec.frame.iloc[0:0]
-
-                # Measuring the lines
-                my_bar = st.progress(int(spec.fit._i_line), text='Measuring the lines')
-                spec.fit.frame(bands, fit_cfg=conf)
-                my_bar.empty()
-
-                # Save the dataframe which now contains the measurements
-                save_state('spec', spec)
-
-            else:
-                st.write('Please upload a spectrum')
-    return
-
 @st.cache_data
 def widget_text_to_list(str_list):
 
@@ -231,6 +269,18 @@ def widget_text_to_list(str_list):
 
     return output
 
+
+@st.cache_data
+def save_edited_bands(data_frame, key):
+
+    df_hold = data_frame.copy()
+    df_hold = df_hold.set_index('label')
+    df_hold.index.name = None
+    st.session_state[f'{key}_hold'] = df_hold
+
+    return
+
+
 def save_objSample(param):
     s_state[f'{param}_hold'] = s_state[f'{param}']
 
@@ -240,10 +290,11 @@ def save_objSample(param):
 @st.cache_resource
 def gdrive_service(collab):
 
-
-    credentials = Credentials.from_service_account_info(secrets.connections.capers.to_dict(),
-                                                        scopes=['https://www.googleapis.com/auth/drive'])
-    service = build('drive', 'v3', credentials=credentials)
+    # credentials = Credentials.from_service_account_info(secrets.connections.capers.to_dict(),
+    #                                                     scopes=['https://www.googleapis.com/auth/drive'])
+    service = build('drive', 'v3',
+                    credentials=Credentials.from_service_account_info(secrets.connections.capers.to_dict(),
+                                                        scopes=['https://www.googleapis.com/auth/drive']))
 
     return service
 
@@ -285,6 +336,7 @@ def download_from_path(service, file_path, starting_parent_id='root'):
 
     return file_bytes
 
+
 def resolve_drive_path(service, folder_path, starting_parent_id='root'):
 
     parent_id = starting_parent_id
@@ -303,6 +355,7 @@ def resolve_drive_path(service, folder_path, starting_parent_id='root'):
 
     return parent_id
 
+
 def find_file_in_folder(service, file_name, folder_id):
     """
     Returns file info (id, name, webViewLink) if the file exists in the folder.
@@ -317,14 +370,6 @@ def find_file_in_folder(service, file_name, folder_id):
     files = response.get('files', [])
     return files[0] if files else None
 
-
-    # if folders:
-    #     for folder in folders:
-    #         st.write(f"✅ Folder: {folder['name']} — ID: {folder['id']}")
-    #         st.write(f"   Shared: {folder.get('shared', False)}")
-    #         st.write(f"   Parents: {folder.get('parents', [])}")
-    # else:
-    #     st.write(f"❌ No folder named '{target_name}' found.")
 
 def search_folder_by_name(service, folder_name):
     query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
@@ -344,6 +389,7 @@ def search_folder_by_name(service, folder_name):
             st.write(f"🔹 {f['name']} — ID: {f['id']}")
             st.write(f"   Parents: {f.get('parents', [])}")
 
+
 def download_binary_file(service, file_id):
     request = service.files().get_media(fileId=file_id)
     fh = BytesIO()
@@ -353,6 +399,7 @@ def download_binary_file(service, file_id):
         status, done = downloader.next_chunk()
     fh.seek(0)
     return fh
+
 
 def hdr_to_df(header):
 
@@ -365,3 +412,73 @@ def hdr_to_df(header):
         df.loc[idx, 'Comment'] = comments_list[idx]
 
     return df
+
+
+
+
+# import streamlit as st
+
+
+
+def download_button(download_filename, object_to_download):
+    """
+    Generates a link to download the given object_to_download.
+    Params:
+    ------
+    object_to_download:  The object to be downloaded.
+    download_filename (str): filename and extension of file. e.g. mydata.csv,
+    Returns:
+    -------
+    (str): the anchor tag to download object_to_download
+    """
+
+    # File type
+    if isinstance(object_to_download, DataFrame):
+        object_to_download = object_to_download.to_string()
+        object_to_download = object_to_download.encode('UTF-8')
+    else:
+        object_to_download = json.dumps(object_to_download)
+
+    # Conversion
+    try:
+        b64 = base64.b64encode(object_to_download.encode()).decode()
+    except AttributeError as e:
+        b64 = base64.b64encode(object_to_download).decode()
+
+    dl_link =   f"""
+                <html>
+                <head>
+                <title>Start Auto Download file</title>
+                <script src="http://code.jquery.com/jquery-3.2.1.min.js"></script>
+                <script>
+                $('<a href="data:text/csv;base64,{b64}" download="{download_filename}">')[0].click()
+                </script>
+                </head>
+                </html>
+                """
+
+    return dl_link
+
+
+def download_component(filename, df):
+    components.html(download_button(filename, df), height=0)
+
+
+def download_frame_form(fname, variable, button_label='Download'):
+
+    with st.form("Frame_download_form", border=False):
+        st.form_submit_button(button_label, on_click=download_component, args=(fname, variable))
+
+    return
+
+#
+# with st.form("my_form", clear_on_submit=False):
+#     # st.text_input("Column name", help="Name of column", key="col_name")
+#     # st.multiselect(
+#     #     "Entries", options=["A", "B", "C"], help="Entries in column", key="col_values"
+#     # )
+#     # st.text_input("Filename (must include .csv)", key="filename")
+#     fname =
+#     file_data =
+#
+#     submit = st.form_submit_button("Download dataframe", on_click=components.html(download_button(fname, file_data), height=0))

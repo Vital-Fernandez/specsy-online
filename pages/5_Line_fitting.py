@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state
 from utils.sidebar import sidebar_widgets
-from utils.input_output import declare_line_measuring
+from utils.interfaces import declare_line_measuring
 from utils.plots import lime_spec_plotting, bokeh_spectrum
 
 # Run the sidebar
@@ -28,7 +28,7 @@ if spec is not None:
 
             with tab_spectrum:
                 st.markdown(f'## Line fittings over-plotted over spectrum')
-                bokeh_spectrum(spec)
+                bokeh_spectrum('spec')
 
             with tab_grid:
                 st.markdown(f'## Profile plot grid')
@@ -45,7 +45,7 @@ if spec is not None:
                 table_name = s_state['id'].replace('.fits', '_frame.txt')
                 st.download_button('Download', data=string_DF.encode('UTF-8'), file_name=table_name)
 
-else:
-    st.markdown("***")
-    st.markdown(f'#### Please upload a spectrum before fitting the lines')
-
+# else:
+#     st.markdown("***")
+#     st.markdown(f'#### Please upload a spectrum before fitting the lines')
+#

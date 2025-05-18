@@ -1,13 +1,27 @@
 import streamlit as st
-import streamlit_authenticator as stauth
 from streamlit import session_state as s_state,secrets
+import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
-from numpy import floor, ceil, intersect1d, sum
-from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, widget_save_state, get_text_spectrum,
-                           convert_for_download, widget_text_to_list)
-from numpy import unique, sort
-from .plots import bokeh_spectrum
-from lime.transitions import au
+from numpy import argsort
+from pyneb import RedCorr
+
+from lime.transitions import au, Line
+from specsy import extinction_coeff_calc
+from numpy import floor, ceil, intersect1d, sum, unique, sort, searchsorted
+
+from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
+                                widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg)
+from utils.tools import dynamic_input_data_editor
+from utils.plots import bokeh_spectrum, bokeh_bands, bokeh_extinction
+
+
+FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
+                       'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
+                       'N2_6548A_amp="expr:N2_6584A_amp/2.94"\n'
+                       'N2_6548A_kinem="N2_6584A"')
+
+FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
+
 
 INSTRUMENT_LIST = ['SDSS', 'OSIRIS', 'ISIS', 'NIRSPEC', 'TEXT']
 
@@ -44,6 +58,7 @@ def unit_conversion_inputs(default_wave_units=None, default_flux_units=None):
             flux_units_str = None
 
     return wave_units_str, flux_units_str
+
 
 def load_collaboration():
 
@@ -138,6 +153,107 @@ def load_collaboration():
 
     return
 
+
+def extinction_form(df_key):
+
+    # Get the parameters for the calculation
+    lines_df = s_state[df_key]
+    lines_H1 = lines_df.loc[lines_df.particle == 'H1'].index.to_numpy()
+    idx_column = lines_df.columns.get_loc('profile_flux') if 'profile_flux' in lines_df.columns else 0
+    with ((st.form('extinction_form', border=True, enter_to_submit=False, clear_on_submit=False))):
+
+        # Lines parameters
+        st.write('Inputs/outputs:')
+        colX, colY, colZ = st.columns([0.3, 0.3, 0.3])
+        with colX:
+            flux_column = st.selectbox('Flux column', lines_df.columns, index=idx_column)
+
+        with colY:
+            st.write("")
+            st.write("")
+            message = 'Recalculate the extinction coefficient to use the Balmer β wavelength as the relative value'
+            Hbeta_conv_check = st.toggle(r'Convert to c(Hβ)', value='True', help=message)
+
+        with colZ:
+            st.write("")
+            st.write("")
+            message = 'Negative and NaN fluxes/uncertainties will be excluded from the calculation'
+            non_phys_check = st.toggle(r'Exclude non-physical', value='True', help=message)
+
+        # Lines parameters
+        st.write("")
+        st.write('Lines selection:')
+
+        colA, colB, colC = st.columns([0.3, 0.3, 0.3])
+        with colA:
+            idx_default_norm = int(argsort(-lines_df.loc[lines_H1, lines_df.columns[idx_column]].to_numpy())[1])
+            norm_line = st.selectbox('Normalization line', lines_H1, index=idx_default_norm)
+
+        with colB:
+            input_list = st.multiselect('Input lines', options=lines_H1, default=None, placeholder='All')
+            input_list = None if len(input_list) == 0 else input_list
+
+        with colC:
+            exclude_list = st.multiselect('Exclude lines', options=lines_H1, default=None, placeholder='None')
+            exclude_list = None if len(exclude_list) == 0 else exclude_list
+
+        # Lines parameters
+        st.write("")
+        st.write('Physical model:')
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            reddening_laws = ["CCM89", "CCM89 Bal07", "CCM89 oD94", "S79 H83 CCM89","K76","SM79 Gal", "G03 LMC",
+                              "MCC99 FM90 LMC", "F99-like", "F99","F88 F99 LMC"]
+            law = st.selectbox("Reddening Law", reddening_laws)
+
+        with col2:
+            R_V = st.number_input("Rᵥ", min_value=0.0, value=3.1, step=0.1)
+
+        with col3:
+            tem = st.number_input("Temperature (K)", min_value=500, value=10000, step=1000)
+
+        with col4:
+            den = st.number_input("Density (1/cm³)", min_value=1.0, value=100.0, step=100.0)
+
+        st.write("")
+        submitted = st.form_submit_button("Compute extinction")
+
+        if submitted:
+
+            st.write('***')
+            st.write('## Results')
+            st.write("")
+            cHbeta, cHbeta_err, log_extinc = extinction_coeff_calc(lines_df, norm_line, R_V, law, tem, den, rel_Hbeta=Hbeta_conv_check,
+                                                       flux_column=flux_column, line_list=input_list, exclude_list=exclude_list)
+
+            red_cor = RedCorr(R_V=R_V, law=law, cHbeta=cHbeta)
+
+            out1, out2, out3 = st.columns([0.27, 0.32, 0.25])
+            with out1:
+                if Hbeta_conv_check:
+                    coeff_label = r'c(H\beta)'
+                else:
+                    coeff_label = Line(norm_line).latex_label[0]
+                    coeff_label = f'c({coeff_label.replace("$", "")})'
+                st.markdown(rf"${coeff_label} = {cHbeta:.3f}\pm{cHbeta_err:.3f}$")
+
+            with out2:
+                E_BV_err = cHbeta_err * 2.5 / red_cor.X(4861.25)
+                st.markdown(rf"$E(V - B) = {red_cor.E_BV:.3f}\pm{E_BV_err:.3f}$")
+
+            with out3:
+                A_V_err = E_BV_err * R_V
+                st.markdown(rf"$A_{{V}} = {red_cor.AV:.3f}\pm{A_V_err:.3f}$")
+
+            # Extinction plot
+            bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta=Hbeta_conv_check)
+
+
+    return
+
+
 def load_spectrum_tab():
 
     with st.form('load_spec_form', border=True, enter_to_submit=False, clear_on_submit=False):
@@ -193,18 +309,15 @@ def load_spectrum_tab():
         if submitted:
 
             # Clear the previous state
-            save_state('id', None)
-            save_state('spec', None)
-            save_state('obs_type',None)
+            clear_obj_data()
 
             if uploaded_file:
-                id = uploaded_file.name
                 spec = load_spectrum(uploaded_file, instrument, z_string, norm_flux_string, wave_units_str, flux_units_str,
                                                         uploaded_file.name)
                 if ml_components:
                     spec.infer.components()
 
-                save_state('id', id)
+                save_state('id', uploaded_file.name)
                 save_state('spec', spec)
                 save_state('obs_type', 'upload')
 
@@ -213,6 +326,7 @@ def load_spectrum_tab():
                 st.write('Please declare spectrum address')
 
     return
+
 
 def match_bands_tab():
 
@@ -226,8 +340,8 @@ def match_bands_tab():
 
     with col_parameters_1:
 
-        # Transistions selection
-        st.markdown(f'##### Transistions selection')
+        st.markdown("")
+        st.markdown(f'##### Transitions selection')
         st.markdown("")
 
         # Line selection
@@ -248,6 +362,7 @@ def match_bands_tab():
 
     with col_parameters_2:
 
+        st.markdown("")
         st.markdown(f'##### Central bands width')
         st.markdown("")
 
@@ -297,19 +412,82 @@ def match_bands_tab():
 
     return
 
-def load_bands_tab():
 
-    st.markdown(f'### Bands file address')
+def load_frame_tab(frame_key):
 
-    # Get the file
-    uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
+    st.markdown(f'### Frame file address')
 
-    # Every form must have a submit button.
-    submitted = st.form_submit_button("Upload bands")
+    try:
 
-    # Load the dataframe
-    if submitted:
-        save_state('bands_df', parse_line_bands_df(uploaded_file))
+        # Get the file
+        uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
+
+        # Every form must have a submit button.
+        submitted = st.form_submit_button("Upload frame")
+
+        # Load the dataframe
+        if submitted:
+            save_state(frame_key, parse_line_bands_df(uploaded_file))
+
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+
+    return
+
+
+def declare_line_measuring():
+
+    # Tabs for fitting lines and for loading measurements
+    tab_fit, tab_upload = st.tabs(['Measure lines', 'Upload measurements'])
+
+    with tab_fit:
+
+        st.markdown(f'### Write the fitting configuration:')
+        st.text_area('Please follow .toml style', key='fit_cfg', height=300, placeholder=FIT_CFG_PLACEHOLDER,
+                     on_change=widget_save_state, help=FIT_CFG_HELP, args=("fit_cfg",))
+
+        if s_state['spec'] is not None:
+
+            # Show upload button if inputs are declared
+            if (s_state['bands_df'] is not None) and (s_state['fit_cfg'] is not None):
+
+                # Every form must have a submit button.
+                submitted = st.button("Fit lines", key='button_bands')
+
+                if submitted:
+
+                    spec, bands = s_state['spec'], s_state['bands_df']
+                    conf = parse_fit_cfg(s_state['fit_cfg'])
+
+                    # Clear previous measurements
+                    spec.frame = spec.frame.iloc[0:0]
+
+                    # Measuring the lines
+                    try:
+                        my_bar = st.progress(int(spec.fit._i_line), text='Measuring the lines')
+                        spec.fit.frame(bands, fit_cfg=conf)
+                        my_bar.empty()
+                    except Exception as e:
+                        st.error(f"An error occurred: {e}")
+
+                    # Save the dataframe which now contains the measurements
+                    save_state('spec', spec)
+                    save_state('lines_df', spec.frame.copy())
+
+            else:
+                st.write('Please declare the line bands')
+
+        else:
+            st.write('Please upload a spectrum')
+
+    # Query surveys
+    with tab_upload:
+        with st.form('load_lines_form', border=False, enter_to_submit=False, clear_on_submit=False):
+            load_frame_tab('lines_df')
+
+            if s_state.lines_df is not None:
+                st.success('Successful upload')
+                st.dataframe(s_state.lines_df)
 
     return
 
@@ -341,57 +519,109 @@ def declare_spectrum_form():
 
     return
 
-def declare_bands_form():
 
-    with st.form('load_bands_form', border=True, enter_to_submit=False, clear_on_submit=False):
-
-        tab_infer, tab_upload = st.tabs(["Match to observation", "Load from file"])
-
-        # Load spectrum
-        with tab_infer:
-            match_bands_tab()
-
-        # Query surveys
-        with tab_upload:
-            load_bands_tab()
+def handle_change():
+    # Read the updated table from session_state
+    st.session_state.bands_df = st.session_state["bands_df"]
 
     return
+
+
+def band_slider(column, label, idcs, idx_central, wave_array, min_val, max_val, disabled=False):
+
+    """
+    Displays a Streamlit slider in a given column to adjust a wavelength band.
+
+    Parameters:
+    - column: st.column object
+    - label: slider label
+    - idcs: 2-element np.array of indices relative to wave_array
+    - idx_central: central wavelength index
+    - wave_array: numpy array of wavelength values
+    - min_val, max_val: slider bounds
+    - disabled: bool to disable the slider
+
+    Returns:
+    - 2-element array of updated wavelength values
+    """
+
+    with column:
+        slider_val = st.slider(label=label, value=tuple(idcs - idx_central), min_value=min_val, max_value=max_val,
+                               step=1, disabled=disabled)
+
+        return wave_array[slider_val[0] + idx_central], wave_array[slider_val[1] + idx_central]
+
 
 def bands_review():
 
-    # Put the bands as a dataframe
-    bands = s_state.get('bands_df')
-    if bands is not None:
 
-        # Adjust
-        st.markdown('')
-        st.markdown(f'##### Manual adjustment:')
-        st.markdown(f'The widgets below can be used to manually change the cell values or delete rows.')
+    spec = st.session_state.spec
 
-        tab_all, tab_single = st.tabs(["All", "Individual"])
-        with tab_all:
-            save_state('bands_df', st.data_editor(bands, num_rows="dynamic", on_change=widget_save_state, args=("bands_df",)))
-            bokeh_spectrum(s_state['spec'], bands)
+    # Select the generate the bands to edit
+    if st.session_state['in_bands'] is None:
+        if st.session_state['bands_df'] is not None:
+            in_bands = st.session_state.bands_df.copy()
+        else:
+            in_bands = spec.retrieve.line_bands(particle_list=['O3', 'O2'])
 
-        with tab_single:
-            # if bands.index.size > 0:
-            #     help_message = 'Select one line to modify and visualize'
-            #     input_line = st.selectbox('Line', bands.index, index=0, key=None, help=help_message)
-            #     st.data_editor(bands.loc[input_line], num_rows="dynamic", on_change=widget_save_state, args=("bands_df",))
-            #     bokeh_bands(s_state['spec'], input_line, bands)
-            # else:
-            #     st.write('No lines in input bands')
-            st.markdown('Not implemented')
+        # Reset the index to avoid conflict issues and store in session state
+        in_bands.index.name = "label"
+        st.session_state.in_bands = in_bands.reset_index()
 
-        st.markdown('')
-        st.markdown('***')
-        st.markdown(f'Save bands selection to a text file.')
-        string_DF = s_state.get('bands_df').to_string()
-        table_name = s_state['id'] + '_bands.txt'
-        st.download_button('Download', data=string_DF.encode('UTF-8'), file_name=table_name)
+    # Tabs showing the full spectrum
+    tabs_all, tab_single = st.tabs(['Full spectrum', 'Individual bands'])
+    with tabs_all:
 
+        # Editable bands widget
+        output_bands = dynamic_input_data_editor(st.session_state.in_bands, key="my_editor")
+
+        # Display the bands
+        bokeh_spectrum('spec', output_bands)
+
+    with tab_single:
+
+        colLabel, colWidth, colCont = st.columns(3, gap="large", vertical_alignment="center")
+        with colLabel:
+            label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='band_selector')
+            idx_label = output_bands.index[output_bands["label"] == label_selected][0]
+
+        with colWidth:
+            message_help = 'The maximum number of band pixels. Increase this number to extend the range of the bands'
+            n_pixels = st.number_input('Band number of pixels', min_value=5, max_value=150, value=25, step=1,
+                                       help=message_help)
+
+        with colCont:
+            st.write("")
+            st.write("")
+            message_help = 'The manual selection excludes the line bands'
+            exclude_cont_check = st.toggle("Exclude continua", value=True, key='toggle_exclude_continua', help=message_help)
+
+        # Manual adjustment bands
+        colBlue, colCentral, colRed = st.columns(3, gap="large", vertical_alignment="center")
+        idx_central = searchsorted(spec.wave_rest, output_bands.loc[idx_label, 'wavelength'])
+        idcs_band_in = searchsorted(spec.wave_rest, output_bands.loc[idx_label, 'w1':'w6'].to_numpy())
+        bands_arr = spec.wave_rest.data[idcs_band_in]
+
+        bands_arr[0], bands_arr[1] = band_slider(colBlue, 'Blue band', idcs_band_in[0:2], idx_central, spec.wave_rest.data,
+                                                 min_val=-n_pixels * 2, max_val=0, disabled=exclude_cont_check)
+
+        bands_arr[2], bands_arr[3] = band_slider(colCentral, 'Central band', idcs_band_in[2:4], idx_central, spec.wave_rest.data,
+                                                 min_val=-n_pixels, max_val=n_pixels)
+
+        bands_arr[4], bands_arr[5] = band_slider(colRed, 'Red band', idcs_band_in[4:6], idx_central, spec.wave_rest.data,
+                                                 min_val=-n_pixels, max_val=n_pixels, disabled=exclude_cont_check)
+
+        # Save the bands
+        output_bands.loc[idx_label, 'w1':'w6'] = bands_arr
+
+        # Plot the bands
+        bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
+
+    # Save modifications
+    save_edited_bands(output_bands, 'bands_df')
 
     return
+
 
 def display_menu():
 
@@ -399,12 +629,13 @@ def display_menu():
     if s_state['spec'] is not None:
 
         if s_state['obs_type'] == 'upload':
+
             # Show the spectrum
             st.markdown("***")
             st.markdown(f'## Input observation')
 
             # Plot spectrum
-            bokeh_spectrum(s_state['spec'])
+            bokeh_spectrum('spec')
 
             # Download
             rec_arr = get_text_spectrum('spec')

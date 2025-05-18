@@ -2,8 +2,6 @@ import streamlit as st
 from streamlit import session_state as s_state
 from .input_output import set_defaults, clear_inputs_button
 
-
-
 def sidebar_widgets():
 
     # Default key values

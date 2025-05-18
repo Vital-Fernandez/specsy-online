@@ -2,23 +2,27 @@ from matplotlib import pyplot as plt
 from bokeh.plotting import figure
 from bokeh.models import LinearColorMapper
 
-import streamlit as st
-from lime.plotting.format import spectrum_figure_labels, theme as theme_lime
-from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid
+
+from lime.plotting.format import theme as theme_lime
+from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid, extinction_gradient
 from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
-from streamlit import session_state as s_state
+import streamlit as st
+from streamlit import session_state as s_state, secrets
 from streamlit_bokeh import streamlit_bokeh
-from numpy import linspace
-from astropy.io import fits
+
 
 from astropy.visualization import ZScaleInterval
 
 Z_FUNC_CMAP = ZScaleInterval()
 
 theme_lime.set_style('dark')
-theme_specsy.set_style('dark')
+theme_specsy.set_style('dark', library='bokeh')
 theme_innate.set_style('dark')
+
+DEFAULT_FIG_CFG = {'width':450, 'height':250,
+               "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
+               "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}}
 
 def lime_spec_plotting(spec, plot_type='spectrum', **kwargs):
 
@@ -77,26 +81,23 @@ def matrix_plot(grid):
 
     return
 
-def bokeh_bands(spec, line, bands=None, fig_cfg=None):
+def bokeh_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=True):
 
-    # Columns for the widgets
-    col1, col2, col3 = st.columns(3, gap="small", vertical_alignment="top", border=False)
+    # Recover the spectrum
+    spec = s_state[spec_key]
 
-    with col1:
-        label = f'Rest frame (z = {spec.redshift:0.3f})'
-        rest_frame = st.toggle(label, value=False, key='rest_frame_check1', help='Display the spectrum in the rest frame.')
-
-    with col2:
-        log_scale = st.toggle("Log scale", value=True, key='log_scale_check1',
-                              help='Display the spectrum in logarithmic scale.')
-
-    fig_cfg = {'width':450, 'height':250} if fig_cfg is None else fig_cfg
-    fig = spec.bokeh.bands(line, return_fig=True, ref_bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale)
+    fig_cfg = None #{'width':450, 'height':250} if fig_cfg is None else fig_cfg
+    fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
+    fig = spec.bokeh.bands(line, ref_bands=bands, exclude_continua=exclude_continua, fig_cfg=fig_cfg, return_fig=True)
     streamlit_bokeh(fig, key='bands_plot')
 
     return
 
-def bokeh_spectrum(spec, bands=None, fig_cfg=None, default_show_fits=True):
+def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False):
+
+    # Recover the spectrum
+    spec = s_state[spec_key]
+    # st.write(bands.loc['O2_3726A_m', 'w3'])
 
     # Columns for the widgets
     col0, col1, col2, col3, col4 = st.columns([0.15, 0.25, 0.2, 0.2, 0.2], gap="small", vertical_alignment='center', border=False)
@@ -109,16 +110,14 @@ def bokeh_spectrum(spec, bands=None, fig_cfg=None, default_show_fits=True):
         log_scale = st.checkbox("Log scale", value=False, key='log_scale_check',
                               help='Display the spectrum in logaritmic scale.')
     with col3:
-        comps_scale = st.checkbox("Show Components", value=False, key='components_check',
+        comps_scale = st.checkbox("Show Components", value=default_components, key='components_check',
                                 help='Show spectrum components.')
     with col4:
         comps_err = st.checkbox("Show uncertainty", value=False, key='show_err_check',
                                 help='Show spectrum flux uncertainty.')
     st.write("")
-    #     fig.xaxis.major_label_text_font_size = "14pt"
-    fig_cfg = {'width':450, 'height':250,
-               "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
-               "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}} if fig_cfg is None else fig_cfg
+
+    fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
     fig = spec.bokeh.spectrum(return_fig=True, bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
                               include_components=comps_scale, include_fits=default_show_fits, show_err=comps_err)
     streamlit_bokeh(fig, key='input_spec')
@@ -157,3 +156,9 @@ def bokeh_2D_spectrum(wave_array, flux_array, limits=None):
 
     return
 
+def bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta):
+
+    fig = extinction_gradient(cHbeta, cHbeta_err, log_extinc, rel_Hbeta=rel_Hbeta, return_fig=True, fig_cfg=DEFAULT_FIG_CFG)
+    streamlit_bokeh(fig, key='extinction_plot')
+
+    return
