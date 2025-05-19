@@ -14,8 +14,8 @@ def run():
                                     st.Page("pages/2_Load_collaboration.py", title="Collaborations"),
                                     st.Page("pages/3_Components_detection.py", title="Components detection")],
 
-             "Line analysis":    [st.Page("pages/4_Load_line_bands.py", title="Line bands"),
-                                  st.Page("pages/5_Line_fitting.py", title="Fitting configuration"), ],
+             "Line analysis":    [st.Page("pages/4_Load_line_bands.py", title="Bands"),
+                                  st.Page("pages/5_Line_fitting.py", title="Fitting"), ],
 
              "Diagnostics":     [st.Page("pages/6_Extinction.py", title="Gas extinction")],
 
@@ -29,82 +29,59 @@ def run():
     return
 
 
+def review_bounds():
+
+    idx2, idx3 = st.session_state.central
+
+    # Update lower limit
+    idx0, idx1 = st.session_state.lower
+    if idx1 > idx2:
+        idx1 = idx2 - 2
+        if idx0 > idx1:
+            idx0 = idx1 - 2
+        st.session_state.lower = (idx0, idx1)
+
+    # Update upper
+    idx4, idx5 = st.session_state.upper
+    if idx3 > idx4:
+        idx4 = idx3 + 2
+        if idx4 > idx5:
+            idx5 = idx4 + 2
+        st.session_state.upper = (idx4, idx5)
+
+    return
+
 if __name__ == "__main__":
 
     run()
 
-    # log = lime.load_frame('/home/vital/PycharmProjects/lime/tests/baseline/manga_lines_log.txt')
+    # import streamlit as st
     #
-    # st.dataframe(log)
-
-
-
-    # # specsy.extinction_coeff_calc()
-
-    # from bokeh.plotting import figure, show
-    # from bokeh.models import ColumnDataSource, Whisker, HoverTool
-    # import numpy as np
-    # import pandas as pd
+    # st.title("Two-Sided Sliders with Sorted Index Constraints")
     #
-    # # Sample synthetic data
-    # x_arr = np.array([0.1, 0.4, 0.6, 0.9])
-    # y_arr = np.array([0.05, 0.3, 0.6, 0.8])
-    # y_err = np.array([0.02, 0.05, 0.04, 0.03])
-    # idcs_valid = np.array([True, True, False, True])
-    # line_labels = ['OIII', 'Hβ', 'Excluded', 'NII']
-    # ref_label = "Hβ"
-    # coeff_label = "Hβ"
-    # cHbeta = 0.12
-    # cHbeta_err = 0.02
-    # m, n = 0.85, 0.01
+    # # Initial range values
+    # full_min, full_max = 0, 100
     #
-    # # Prepare unified data source
-    # df = pd.DataFrame({
-    #     'x': x_arr,
-    #     'y': y_arr,
-    #     'y_err': y_err,
-    #     'label': line_labels,
-    #     'valid': idcs_valid,
-    #     'color': ['blue' if v else 'red' for v in idcs_valid]
-    # })
+    # # Session state initialization
+    # if "idcs_bands" not in st.session_state:
+    #     st.session_state.idcs_bands = (10, 50)
+    # if "central" not in st.session_state:
+    #     st.session_state.central = (40, 60)
+    # if "upper" not in st.session_state:
+    #     st.session_state.upper = (50, 90)
     #
-    # source = ColumnDataSource(df)
+    # # review_bounds()
     #
-    # # Linear fit line
-    # fit_x = np.linspace(x_arr.min(), x_arr.max(), 100)
-    # fit_y = m * fit_x + n
+    # colBlue, colCentral, colRed = st.columns(3)
     #
-    # # Bokeh figure
-    # p = figure(title=f"c({coeff_label}) extinction calculation",
-    #            x_axis_label=f"f_λ - f_{{{ref_label}}}",
-    #            y_axis_label=f"log(I_λ / I_{{{ref_label}}})_theo - log(F_λ / F_{{{ref_label}}})_obs",
-    #            width=700, height=400,
-    #            tools="pan,wheel_zoom,box_zoom,reset")
+    # # Display sliders
+    # with colCentral:
+    #     st.slider("central Index", full_min, full_max, key="central", on_change=review_bounds)
     #
-    # # Plot all points with color by validity
-    # p.circle('x', 'y', size=8, color='color', source=source, legend_field='valid')
+    # with colBlue:
+    #     st.slider("Lower Index", full_min, full_max, key="lower", on_change=review_bounds)
     #
-    # # Error bars for all points
-    # p.add_layout(Whisker(source=source, base='x', upper='y', lower='y',
-    #                      upper_head=None, lower_head=None, line_width=2))
+    # with colRed:
+    #     st.slider("Upper Index", full_min, full_max, key="upper", on_change=review_bounds)
     #
-    # # Hover tool for all points
-    # hover_all = HoverTool(tooltips=[
-    #     ("Line", "@label"),
-    #     ("Valid", "@valid"),
-    #     ("x", "@x{0.000}"),
-    #     ("y", "@y{0.000}")
-    # ])
-    # p.add_tools(hover_all)
-    #
-    # # Linear fit
-    # p.line(fit_x, fit_y, line_dash='dashed', line_width=2,
-    #        legend_label=f"c({coeff_label}) = {cHbeta:.3f} ± {cHbeta_err:.3f}")
-    #
-    # p.legend.location = "bottom_center"
-    # p.legend.orientation = "horizontal"
-    #
-    # show(p)
-    #
-    #
-    #
+    # st.session_state

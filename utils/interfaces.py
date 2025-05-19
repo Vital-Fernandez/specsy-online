@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit import session_state as s_state,secrets
 import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
-from numpy import argsort
+from numpy import argsort, abs, array
 from pyneb import RedCorr
 
 from lime.transitions import au, Line
@@ -12,7 +12,7 @@ from numpy import floor, ceil, intersect1d, sum, unique, sort, searchsorted
 from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
                                 widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg)
 from utils.tools import dynamic_input_data_editor
-from utils.plots import bokeh_spectrum, bokeh_bands, bokeh_extinction
+from utils.plots import bokeh_spectrum, bokeh_bands, bokeh_extinction, matplotlib_bands
 
 
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
@@ -119,37 +119,6 @@ def load_collaboration():
     msg = f'{idcs.sum()} files in selection'
     st.write(msg)
     st.dataframe(df.loc[idcs])
-
-    # service = gdrive_service(s_state["username"])
-    # list_file = service.files().list(fields="files(id,name,webViewLink)").execute()
-    # st.write(list_file)
-
-    # fname = 'examples/example_doc'
-    # st.write(fname)
-    # parent_id = resolve_drive_path(service, fname.split('/'))
-    # st.write(parent_id)
-
-    # list_root_contents(service)
-
-    # full_path = "CAPERS/CAPERS_EGS_V0.2/CAPERS_EGS_P1/CAPERS_EGS_P1_s000240728_x1d_optext.fits"
-    # folder_parts = full_path.split('/')
-    #
-    # folder_id = resolve_drive_path(service, folder_parts[:-1], starting_parent_id=secrets.connections.capers.root_id)
-    #
-    # if folder_id:
-    #     file = find_file_in_folder(service, folder_parts[-1], folder_id)
-    #     if file:
-    #         st.write(f"✅ File found: {file['name']} (ID: {file['id']})")
-    #         st.write(f"🔗 {file['webViewLink']}")
-    #         file_bytes = download_binary_file(service, file['id'])
-    #
-    #         spec = lime.Spectrum.from_file(file_bytes, instrument='nirspec')
-    #         bokeh_spectrum(spec)
-    #
-    #     else:
-    #         st.write("❌ File not found in the target folder.")
-    # else:
-    #     st.write("❌ Could not resolve the folder path.")
 
     return
 
@@ -549,8 +518,42 @@ def band_slider(column, label, idcs, idx_central, wave_array, min_val, max_val, 
         slider_val = st.slider(label=label, value=tuple(idcs - idx_central), min_value=min_val, max_value=max_val,
                                step=1, disabled=disabled)
 
-        return wave_array[slider_val[0] + idx_central], wave_array[slider_val[1] + idx_central]
+        # Minimum number of pixels
+        return slider_val[0] + idx_central, slider_val[1] + idx_central
+        # return wave_array[slider_val[0] + idx_central], wave_array[slider_val[1] + idx_central]
 
+def start_bounds(spec, output_bands,):
+    s_state.idx_label = output_bands.index[output_bands["label"] == s_state.line_selected][0]
+    s_state.idx_central = searchsorted(spec.wave_rest.data, output_bands.loc[s_state.idx_label, 'wavelength'])
+    idcs_in = searchsorted(spec.wave_rest, output_bands.loc[s_state.idx_label, 'w1':'w6'].to_numpy()) - s_state.idx_central
+    s_state.lower = tuple(idcs_in[0:2])
+    s_state.central = tuple(idcs_in[2:4])
+    s_state.upper = tuple(idcs_in[4:6])
+    review_bounds()
+
+    return
+
+def review_bounds():
+
+    idx2, idx3 = st.session_state.central
+
+    # Update lower limit
+    idx0, idx1 = st.session_state.lower
+    if idx1 > idx2:
+        idx1 = idx2 - 2
+        if idx0 > idx1:
+            idx0 = idx1 - 2
+        st.session_state.lower = (idx0, idx1)
+
+    # Update upper
+    idx4, idx5 = st.session_state.upper
+    if idx3 > idx4:
+        idx4 = idx3 + 2
+        if idx4 > idx5:
+            idx5 = idx4 + 2
+        st.session_state.upper = (idx4, idx5)
+
+    return
 
 def bands_review():
 
@@ -582,12 +585,16 @@ def bands_review():
 
         colLabel, colWidth, colCont = st.columns(3, gap="large", vertical_alignment="center")
         with colLabel:
-            label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='band_selector')
-            idx_label = output_bands.index[output_bands["label"] == label_selected][0]
+            if 'line_selected' not in s_state:
+                s_state['line_selected'] = output_bands.label.to_numpy()[0]
+                start_bounds(spec, output_bands)
+
+            label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='line_selected',
+                                          on_change=start_bounds, args=(spec, output_bands, ))
 
         with colWidth:
             message_help = 'The maximum number of band pixels. Increase this number to extend the range of the bands'
-            n_pixels = st.number_input('Band number of pixels', min_value=5, max_value=150, value=25, step=1,
+            n_pixels = st.number_input('Band max pixels number', min_value=5, max_value=150, value=30, step=1,
                                        help=message_help)
 
         with colCont:
@@ -596,26 +603,26 @@ def bands_review():
             message_help = 'The manual selection excludes the line bands'
             exclude_cont_check = st.toggle("Exclude continua", value=True, key='toggle_exclude_continua', help=message_help)
 
-        # Manual adjustment bands
+        # Display sliders
         colBlue, colCentral, colRed = st.columns(3, gap="large", vertical_alignment="center")
-        idx_central = searchsorted(spec.wave_rest, output_bands.loc[idx_label, 'wavelength'])
-        idcs_band_in = searchsorted(spec.wave_rest, output_bands.loc[idx_label, 'w1':'w6'].to_numpy())
-        bands_arr = spec.wave_rest.data[idcs_band_in]
+        with colCentral:
+            st.slider("Central band idcs", -n_pixels, n_pixels, key="central", on_change=review_bounds)
 
-        bands_arr[0], bands_arr[1] = band_slider(colBlue, 'Blue band', idcs_band_in[0:2], idx_central, spec.wave_rest.data,
-                                                 min_val=-n_pixels * 2, max_val=0, disabled=exclude_cont_check)
+        with colBlue:
+            st.slider("Lower band idcs", -n_pixels, 0, key="lower", on_change=review_bounds, disabled=exclude_cont_check)
 
-        bands_arr[2], bands_arr[3] = band_slider(colCentral, 'Central band', idcs_band_in[2:4], idx_central, spec.wave_rest.data,
-                                                 min_val=-n_pixels, max_val=n_pixels)
-
-        bands_arr[4], bands_arr[5] = band_slider(colRed, 'Red band', idcs_band_in[4:6], idx_central, spec.wave_rest.data,
-                                                 min_val=-n_pixels, max_val=n_pixels, disabled=exclude_cont_check)
+        with colRed:
+            st.slider("Upper band idcs", 0, n_pixels, key="upper", on_change=review_bounds, disabled=exclude_cont_check)
 
         # Save the bands
-        output_bands.loc[idx_label, 'w1':'w6'] = bands_arr
+        idcs_array = array([s_state.lower[0], s_state.lower[1],
+                           s_state.central[0], s_state.central[1],
+                           s_state.upper[0], s_state.upper[1]]) + s_state.idx_central
+        bands_arr = spec.wave_rest.data[idcs_array.astype(int)]
 
-        # Plot the bands
-        bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
+        # bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
+        matplotlib_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
+        output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
 
     # Save modifications
     save_edited_bands(output_bands, 'bands_df')

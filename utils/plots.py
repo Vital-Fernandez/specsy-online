@@ -88,8 +88,26 @@ def bokeh_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=True)
 
     fig_cfg = None #{'width':450, 'height':250} if fig_cfg is None else fig_cfg
     fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
-    fig = spec.bokeh.bands(line, ref_bands=bands, exclude_continua=exclude_continua, fig_cfg=fig_cfg, return_fig=True)
+
+    fig = spec.bokeh.bands(line, bands=bands, exclude_continua=exclude_continua, fig_cfg=fig_cfg, return_fig=True)
     streamlit_bokeh(fig, key='bands_plot')
+
+    return
+
+def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=True):
+
+    # Recover the spectrum
+    spec = s_state[spec_key]
+
+    fig_cfg = {'figure.figsize': (2, 2), 'figure.dpi' : 200}
+
+    fig = plt.figure()
+    spec.plot.bands(line, bands=bands, in_fig=fig,  include_fits=False, rest_frame=False, exclude_continua=exclude_continua,
+                    fig_cfg=fig_cfg)
+    _colsA, colB, _colC = st.columns([0.2, 0.6, 0.2])
+
+    with colB:
+        st.pyplot(fig, transparent=True, use_container_width=True)
 
     return
 

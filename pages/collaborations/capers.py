@@ -17,10 +17,13 @@ from utils.plots import bokeh_spectrum, bokeh_2D_spectrum
 def read_flux_measurements(obj_series, obj_file, flux_sample):
 
     idx_flux = (obj_series.index[0][0], obj_series.iloc[0].MPT_number, obj_file)
-    flux_df = flux_sample.xs(idx_flux, level=['sample', 'id', 'file'], drop_level=True)
-    flux_df.index.name = None
-
-    if flux_df.index.size == 0:
+    try:
+        flux_df = flux_sample.xs(idx_flux, level=['sample', 'id', 'file'], drop_level=True)
+        flux_df.index.name = None
+        if flux_df.index.size == 0:
+            flux_df = None
+        st.info('Flux measurements located')
+    except KeyError:
         flux_df = None
 
     return flux_df

@@ -32,7 +32,6 @@ else:
         with tab_upload:
             load_frame_tab('bands_df')
 
-
     # Adjust the bands
     if s_state.bands_df is not None:
 
