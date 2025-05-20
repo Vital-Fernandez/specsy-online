@@ -629,8 +629,6 @@ def bands_review():
 
         if s_state.idx_label in output_bands.index:
             output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
-        else:
-            st.warning('Null')
 
     # Save modifications
     save_edited_bands(output_bands, 'bands_df')
