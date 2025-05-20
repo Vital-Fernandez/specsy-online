@@ -10,7 +10,7 @@ sidebar_widgets()
 # Page structure
 st.markdown(f'# Line bands')
 st.markdown(f'Using the menu below you can generate a table with bands for your observation or upload one'
-            f'computer')
+            f'computer. The current lines database can be found at this [link](https://docs.google.com/spreadsheets/d/10S_2iW7ygyM9_aMPtHAsIPIISwv72SwPFiSSKcV-n7s/edit?usp=sharing).')
 
 # Check file has been uploaded
 if s_state['spec'] is None:

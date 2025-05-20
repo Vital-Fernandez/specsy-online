@@ -102,7 +102,7 @@ def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=
     fig_cfg = {'figure.figsize': (2, 2), 'figure.dpi' : 200}
 
     fig = plt.figure()
-    spec.plot.bands(line, bands=bands, in_fig=fig,  include_fits=False, rest_frame=False, exclude_continua=exclude_continua,
+    spec.plot.bands(line, bands=bands, in_fig=fig,  include_fits=False, rest_frame=True, exclude_continua=exclude_continua,
                     fig_cfg=fig_cfg)
     _colsA, colB, _colC = st.columns([0.2, 0.6, 0.2])
 
@@ -136,6 +136,9 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
     st.write("")
 
     fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
+
+
+    # Get the line labels and the bands labels for the lines
     fig = spec.bokeh.spectrum(return_fig=True, bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
                               include_components=comps_scale, include_fits=default_show_fits, show_err=comps_err)
     streamlit_bokeh(fig, key='input_spec')

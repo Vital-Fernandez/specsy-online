@@ -27,7 +27,8 @@ def dynamic_input_data_editor(data, key, **_kwargs):
         'data': data,
         'key': key,
         'on_change': on_data_editor_changed,
-        'num_rows': 'dynamic'
+        'num_rows': 'dynamic',
+        'hide_index': False,
     })
 
     return st.data_editor(**__kwargs)

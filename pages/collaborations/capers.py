@@ -22,7 +22,6 @@ def read_flux_measurements(obj_series, obj_file, flux_sample):
         flux_df.index.name = None
         if flux_df.index.size == 0:
             flux_df = None
-        st.info('Flux measurements located')
     except KeyError:
         flux_df = None
 
@@ -259,6 +258,7 @@ def capers_selection():
                     spec.load_frame(obj_flux)
                     save_state('lines_df', obj_flux)
                     save_state('bands_df', lime.bands_from_measurements(obj_flux))
+                    st.info('Line measurements located')
 
                 # Save the data
                 save_state('spec', spec)

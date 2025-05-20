@@ -2,8 +2,9 @@ import streamlit as st
 from streamlit import session_state as s_state,secrets
 import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
-from numpy import argsort, abs, array
+from numpy import argsort, abs, array, isnan
 from pyneb import RedCorr
+from pandas import notnull
 
 from lime.transitions import au, Line
 from specsy import extinction_coeff_calc
@@ -579,15 +580,18 @@ def bands_review():
         output_bands = dynamic_input_data_editor(st.session_state.in_bands, key="my_editor")
 
         # Display the bands
-        bokeh_spectrum('spec', output_bands)
+        bands_plot = output_bands.set_index('label') if isinstance(output_bands.index[0], int) else output_bands
+        bokeh_spectrum('spec', bands_plot)
 
     with tab_single:
 
         colLabel, colWidth, colCont = st.columns(3, gap="large", vertical_alignment="center")
         with colLabel:
+
             if 'line_selected' not in s_state:
                 s_state['line_selected'] = output_bands.label.to_numpy()[0]
                 start_bounds(spec, output_bands)
+                st.info(output_bands.label.to_numpy()[0])
 
             label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='line_selected',
                                           on_change=start_bounds, args=(spec, output_bands, ))
@@ -622,7 +626,11 @@ def bands_review():
 
         # bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
         matplotlib_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
-        output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
+
+        if s_state.idx_label in output_bands.index:
+            output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
+        else:
+            st.warning('Null')
 
     # Save modifications
     save_edited_bands(output_bands, 'bands_df')
