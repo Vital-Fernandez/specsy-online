@@ -160,21 +160,26 @@ def capers_selection():
     idcs_selection = indexing_sheets(files_df)
 
     # Display the sheet
+    # st.caption("")
+    # st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download the data.")
+    # default_tab, obser_tab, z_tab, files_tab = st.tabs(['ID', 'Observation', 'Redshift', 'Files'])
+    # with default_tab:
+    #     column_order = ['MPT_number', 'ra', 'dec', 'disp', 'Notes']
+    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
+    # with obser_tab:
+    #     column_order = ['MPT_number', 'MSA_weight', 'n_nods_vis1', 'n_nods_vis2', 'n_nods_vis3', 'eff_exp_time', 'shutter_centering']
+    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
+    # with z_tab:
+    #     column_order = ['MPT_number', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian']
+    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
+    # with files_tab:
+    #     column_order = ['MPT_number', 's2d', 'x1d', 'optext']
+    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
+
     st.caption("")
     st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download the data.")
-    default_tab, obser_tab, z_tab, files_tab = st.tabs(['ID', 'Observation', 'Redshift', 'Files'])
-    with default_tab:
-        column_order = ['MPT_number', 'ra', 'dec', 'disp', 'Notes']
-        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-    with obser_tab:
-        column_order = ['MPT_number', 'MSA_weight', 'n_nods_vis1', 'n_nods_vis2', 'n_nods_vis3', 'eff_exp_time', 'shutter_centering']
-        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-    with z_tab:
-        column_order = ['MPT_number', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian']
-        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-    with files_tab:
-        column_order = ['MPT_number', 's2d', 'x1d', 'optext']
-        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
+    column_order = ['MPT_number', 'ra', 'dec', 'disp', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian', 'Notes', 's2d', 'x1d', 'optext']
+    st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
 
     # Download spectra
     st.markdown("***")
