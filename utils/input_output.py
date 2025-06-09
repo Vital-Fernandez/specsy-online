@@ -54,7 +54,7 @@ DEFAULT_STATES = {'spec': None,
                   "in_bands": None,
 
                   # CAPERs
-                  "sample_list": ['CAPERS_EGS_V0.2.1', 'CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2'],
+                  "sample_list": ['CAPERS_EGS_V0.2.1', 'CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2.1'],
                   "mpt_list": None,
                   "z_range": None,
                   "z_limits": None,
@@ -175,11 +175,25 @@ def load_logo(file_address=LOGO_PATH):
 
 
 @st.cache_data
-def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave, units_flux, id_label):
+def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=None, units_flux_in=None, id_label=None,
+                  delimiter=None, comments=None, skiprows=None, usecols=None, wave_units_out=None, flux_units_out=None):
+
+
+    # uploaded_file, instrument, z_string, norm_flux_string, wave_units_in, flux_units_in,
+    # uploaded_file.name, separator, comments, skiprows, use_cols,
+    # wave_units_out, flux_units_out
 
     # Unit conversion if necessary
     spec_params = {'redshift': None if redshift is None or redshift == '' else float(redshift),
-                   'id_label': None if id_label is None or id_label == '' else id_label}
+                   'id_label': None if id_label is None or id_label == '' else id_label,
+                   'norm_flux': None if norm_flux is None else float(norm_flux),
+                   'units_wave': units_wave_in,
+                   'units_flux': units_flux_in,
+
+                   'delimiter': delimiter,
+                   'comments': comments,
+                   'skiprows': skiprows,
+                   'usecols': usecols if usecols is None else array(usecols.replace(" ","").split(',')).astype(int)}
 
     if norm_flux is not None and redshift != '' :
         spec_params['norm_flux'] = float(norm_flux)
@@ -190,7 +204,9 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave, units
 
     # Load the object
     spec = Spectrum.from_file(input_file, instrument, **spec_params)
-    spec.unit_conversion(units_wave, units_flux)
+
+    if (wave_units_out is not None) and (flux_units_out is not None):
+        spec.unit_conversion(wave_units_out, flux_units_out)
 
     return spec
 

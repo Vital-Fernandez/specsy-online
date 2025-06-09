@@ -6,11 +6,15 @@ from utils.interfaces import load_spectrum_tab, display_menu
 sidebar_widgets()
 
 # Introduction text
-st.markdown(f'# Load observation file')
-st.markdown(f'The menu below can be used to read a *.fits* file from the supported instruments.')
+st.markdown(f'# Load observation')
+st.markdown(
+            "Use the menus below to load a spectrum from a text file "
+            "(*.txt*, *.csv*) or a *.fits* file from one of the supported instruments."
+            )
 
 # Configuration menu
-load_spectrum_tab()
+with st.container(key='este'):
+    load_spectrum_tab()
 
 # Show the input data
 display_menu()

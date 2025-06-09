@@ -217,7 +217,17 @@ def capers_selection():
     # Import spectra
     with st.form('load_capers', border=False, enter_to_submit=False, clear_on_submit=False):
 
-        wave_units_str, flux_units_str = unit_conversion_inputs('Angstrom', 'FLAM')
+        col_A, col_B, _, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
+        wave_units_str, flux_units_str = unit_conversion_inputs(col_A, col_B,
+                                                                label_wave='Wavelength units out',
+                                                                label_flux='Flux units out',
+                                                                default_wave_units='Angstrom',
+                                                                default_flux_units='FLAM')
+
+        # # Input wavelength and flux units
+        # wave_units_in, flux_units_in = unit_conversion_inputs(col_C, col_D, 'Wavelength units in', 'Flux units in',
+        #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_wave'],
+        #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_flux'])
 
         # Run the query
         st.write('')
@@ -255,7 +265,8 @@ def capers_selection():
                 z_obj = next((row[col].values[0] for col in ['z_gaussian', 'z_manual', 'z_aspect_key', 'z_UNICORN'] if notna(row[col].values)), None)
 
                 # Get spectrum
-                spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, None, wave_units_str, flux_units_str, None)
+                spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, norm_flux=None, id_label=f'{obj}',
+                                     wave_units_out=wave_units_str, flux_units_out=flux_units_str)
                 obj_flux = read_flux_measurements(row, file1d, flux_df)
 
                 # Get line measurements
