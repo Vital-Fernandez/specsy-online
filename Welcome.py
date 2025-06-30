@@ -1,9 +1,5 @@
 import streamlit as st
 
-import lime
-import specsy
-
-
 # Welcome screen
 def run():
 
@@ -54,34 +50,3 @@ def review_bounds():
 if __name__ == "__main__":
 
     run()
-
-    # import streamlit as st
-    #
-    # st.title("Two-Sided Sliders with Sorted Index Constraints")
-    #
-    # # Initial range values
-    # full_min, full_max = 0, 100
-    #
-    # # Session state initialization
-    # if "idcs_bands" not in st.session_state:
-    #     st.session_state.idcs_bands = (10, 50)
-    # if "central" not in st.session_state:
-    #     st.session_state.central = (40, 60)
-    # if "upper" not in st.session_state:
-    #     st.session_state.upper = (50, 90)
-    #
-    # # review_bounds()
-    #
-    # colBlue, colCentral, colRed = st.columns(3)
-    #
-    # # Display sliders
-    # with colCentral:
-    #     st.slider("central Index", full_min, full_max, key="central", on_change=review_bounds)
-    #
-    # with colBlue:
-    #     st.slider("Lower Index", full_min, full_max, key="lower", on_change=review_bounds)
-    #
-    # with colRed:
-    #     st.slider("Upper Index", full_min, full_max, key="upper", on_change=review_bounds)
-    #
-    # st.session_state

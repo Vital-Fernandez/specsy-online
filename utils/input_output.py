@@ -54,7 +54,7 @@ DEFAULT_STATES = {'spec': None,
                   "in_bands": None,
 
                   # CAPERs
-                  "sample_list": ['CAPERS_EGS_V0.2.1', 'CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2.1'],
+                  "sample_list": ['CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2.1', 'CAPERS_EGS_V0.2.2'],
                   "mpt_list": None,
                   "z_range": None,
                   "z_limits": None,
@@ -346,7 +346,7 @@ def download_from_path(service, file_path, starting_parent_id='root'):
         if file_obj:
             file_bytes = download_binary_file(service, file_obj['id'])
         else:
-            st.write(f"❌ File ({file_obj['name']}) not found in the target folder ({parent_id}).")
+            st.write(f"❌ File ({path_parts[-1]}) not found in the target folder ({parent_id}).")
     else:
         st.write(f"❌ Could not resolve the folder path ({file_path}).")
 
