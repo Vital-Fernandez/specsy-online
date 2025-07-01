@@ -6,7 +6,6 @@ from streamlit_authenticator import Authenticate
 from pages.collaborations.capers import capers_selection
 
 st.set_page_config(
-    # page_title="Ex-stream-ly Cool App",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={'Get Help': 'https://www.extremelycoolapp.com/help',

@@ -116,9 +116,9 @@ def indexing_sheets(input_df, ref_redshift='z_UNICORN'):
     # Redshift range indexing
     z_range = s_state.get('z_range')
     if z_range is not None:
-        idcs = idcs & (input_df[ref_redshift] >= z_range[0]) & (input_df[ref_redshift] <= z_range[1])
+        idcs_redshift = idcs & (input_df[ref_redshift] >= z_range[0]) & (input_df[ref_redshift] <= z_range[1])
 
-    # Object selection
+    # Name selection
     mpt_list = s_state.get('mpt_list')
     if mpt_list is not None and mpt_list != "":
         mpt_array = widget_text_to_list(mpt_list)
@@ -126,14 +126,21 @@ def indexing_sheets(input_df, ref_redshift='z_UNICORN'):
         idcs_selection = input_df['MPT_number'].isin(mpt_array)
         mpt_found = input_df.loc[idcs_selection, 'MPT_number'].unique()
         mpt_common = intersect1d(mpt_found, mpt_array)
+        idcs_name = idcs & idcs_selection
+
         if sum(mpt_common) > 0:
-            st.info(f'Objects {", ".join(list(mpt_common.astype(str)))} were found the sample selection')
-            idcs = idcs & idcs_selection
-        else:
-            st.warning('None of the objects in the input MPT list was found')
+            msg = f'The object {mpt_found} was found on the dataset' if len(mpt_common) == 1 else f'The objects {mpt_found} were found on the dataset'
+            st.warning(msg)
+    else:
+        idcs_name = None
 
+    # Return the idcs with all the filter included NaN redshift if the input name has been requested
+    if idcs_name is None:
+        idcs = idcs_redshift
+    else:
+        idcs = idcs_name
 
-    return idcs
+    return idcs, idcs.sum()
 
 
 def capers_selection():
@@ -157,7 +164,7 @@ def capers_selection():
     widgets_selection(files_df)
 
     # Get indexes of entry in sheet
-    idcs_selection = indexing_sheets(files_df)
+    idcs_selection, n_objs = indexing_sheets(files_df)
 
     # Display the sheet
     # st.caption("")
@@ -176,154 +183,166 @@ def capers_selection():
     #     column_order = ['MPT_number', 's2d', 'x1d', 'optext']
     #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
 
-    st.caption("")
-    st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download the data.")
-    column_order = ['MPT_number', 'ra', 'dec', 'disp', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian', 'Notes', 's2d', 'x1d', 'optext']
-    st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
 
-    # Download spectra
-    st.markdown("***")
-    st.markdown(f'### Import *.fits* file')
+    # No objects in selection
+    if n_objs == 0:
+        st.warning(f'There are not observations for the current selection')
 
-    # Cropped df
-    df_selection = files_df.loc[idcs_selection]
-    msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{idcs_selection.sum()} objects</span> '
-           f' use the menus below to load the spectra from an individual source.')
-    st.write(msg, unsafe_allow_html=True)
+    else:
 
-    # Object selection
-    msa_unique = sort(df_selection.MPT_number.unique().astype(int))
-    help_msg = 'Select the object'
-    obj = st.selectbox('Object MSA', options=msa_unique, help=help_msg)
-    idcs_obj = df_selection.MPT_number == obj
+        st.caption("")
+        st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download it.")
+        column_order = ['MPT_number', 'ra', 'dec', 'disp', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual',
+                        'z_gaussian', 'Notes', 's2d', 'x1d', 'optext']
+        st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
 
-    # 1D selection
-    file1d_list = df_selection.loc[idcs_obj, ['optext', 'x1d']].to_numpy()
-    file1d_list = file1d_list[notnull(file1d_list)]
-    help_msg = 'Select the 1D spectrum to download'
-    file1d = st.selectbox('1D spectrum file', options=file1d_list, help=help_msg)
-    ext1D = 'optext' if 'optext' in file1d else 'x1d'
-    idx_1D = idcs_obj & df_selection.loc[idcs_obj, ext1D].index
+        # Download spectra
+        st.markdown("***")
+        st.markdown(f'### Import *.fits* file')
 
-    # 2D selection
-    file2d_list = df_selection.loc[idcs_obj, 's2d'].to_numpy()
-    help_msg = 'Select the 2D spectrum to download'
-    file2d = st.selectbox('2D spectrum file', options=file2d_list, help=help_msg)
-    idx_2D = idcs_obj & df_selection.loc[idcs_obj, 's2d'].index
+        # Cropped df
+        df_selection = files_df.loc[idcs_selection]
+        msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{n_objs} objects</span> '
+               f' use the menus below to load the spectra from an individual source.')
+        st.write(msg, unsafe_allow_html=True)
 
-    full_path1d = f"{s_state['username'].upper()}/{df_selection.loc[idx_1D, 'file_path'].values[0]}/{file1d}"
-    full_path2d = f"{s_state['username'].upper()}/{df_selection.loc[idx_2D, 'file_path'].values[0]}/{file2d}"
+        # Object selection
+        msa_unique = sort(df_selection.MPT_number.unique().astype(int))
+        help_msg = 'Select the object'
+        obj = st.selectbox('Object MSA', options=msa_unique, help=help_msg)
+        idcs_obj = df_selection.MPT_number == obj
 
-    # Import spectra
-    with st.form('load_capers', border=False, enter_to_submit=False, clear_on_submit=False):
+        # 1D selection
+        file1d_list = df_selection.loc[idcs_obj, ['optext', 'x1d']].to_numpy()
+        file1d_list = file1d_list[notnull(file1d_list)]
+        st.write(f'Number of 1d: {len(file1d_list)}')
 
-        col_A, col_B, _, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
-        wave_units_str, flux_units_str = unit_conversion_inputs(col_A, col_B,
-                                                                label_wave='Wavelength units out',
-                                                                label_flux='Flux units out',
-                                                                default_wave_units='Angstrom',
-                                                                default_flux_units='FLAM')
+        help_msg = 'Select the 1D spectrum to download'
+        file1d = st.selectbox('1D spectrum file', options=file1d_list, help=help_msg)
+        ext1D = 'optext' if 'optext' in file1d else 'x1d'
+        idx_1D = idcs_obj & df_selection.loc[idcs_obj, ext1D].index
 
-        # # Input wavelength and flux units
-        # wave_units_in, flux_units_in = unit_conversion_inputs(col_C, col_D, 'Wavelength units in', 'Flux units in',
-        #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_wave'],
-        #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_flux'])
+        # 2D selection
+        file2d_list = df_selection.loc[idcs_obj, 's2d'].to_numpy()
+        st.write(f'Number of 1d: {len(file2d_list)}')
 
-        # Run the query
-        st.write('')
-        help_msg=f'Press to download the spectra from CAPERS google drive.'
-        submitted = st.form_submit_button("Load observation", help=help_msg)
+        help_msg = 'Select the 2D spectrum to download'
+        file2d = st.selectbox('2D spectrum file', options=file2d_list, help=help_msg)
+        idx_2D = idcs_obj & df_selection.loc[idcs_obj, 's2d'].index
 
-        if submitted:
+        full_path1d = f"{s_state['username'].upper()}/{df_selection.loc[idx_1D, 'file_path'].values[0]}/{file1d}"
+        full_path2d = f"{s_state['username'].upper()}/{df_selection.loc[idx_2D, 'file_path'].values[0]}/{file2d}"
 
-            # Clear the previous data
-            clear_obj_data()
+        # Import spectra
+        with st.form('load_capers', border=False, enter_to_submit=False, clear_on_submit=False):
 
-            # Connect to drive
-            service = gdrive_service(s_state["username"])
+            col_A, col_B, _, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
+            wave_units_str, flux_units_str = unit_conversion_inputs(col_A, col_B,
+                                                                    label_wave='Wavelength units out',
+                                                                    label_flux='Flux units out',
+                                                                    default_wave_units='Angstrom',
+                                                                    default_flux_units='FLAM')
 
-            # Download the 2D spectrum
-            with st.spinner(f'2D spectrum file query'):
-                file2d_bytes = download_from_path(service, full_path2d, secrets.connections.capers.root_id)
+            # # Input wavelength and flux units
+            # wave_units_in, flux_units_in = unit_conversion_inputs(col_C, col_D, 'Wavelength units in', 'Flux units in',
+            #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_wave'],
+            #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_flux'])
 
-            if file2d_bytes is not None:
-                st.info('2D spectrum located')
-                data_list, hdr_list = load_fits(file2d_bytes, data_ext_list=[1, 2], hdr_ext_list=[0, 1], url_check=False)
-                save_state('2D_spectrum', (data_list, hdr_list))
-            else:
-                st.warning('2D spectrum was not located')
+            # Run the query
+            st.write('')
+            help_msg=f'Press to download the spectra from CAPERS google drive.'
+            submitted = st.form_submit_button("Load observation", help=help_msg)
 
-            # Download the 1D spectrum
-            with st.spinner(f'1D spectrum file query'):
-                file1d_bytes = download_from_path(service, full_path1d, secrets.connections.capers.root_id)
+            if submitted:
 
-            if file1d_bytes is not None:
-                st.info('1D spectrum located')
+                # Clear the previous data
+                clear_obj_data()
 
-                # Recover redshift from type priority
-                row = df_selection.loc[idx_1D]
-                z_obj = next((row[col].values[0] for col in ['z_gaussian', 'z_manual', 'z_aspect_key', 'z_UNICORN'] if notna(row[col].values)), None)
+                # Connect to drive
+                service = gdrive_service(s_state["username"])
 
-                # Get spectrum
-                spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, norm_flux=None, id_label=f'{obj}',
-                                     wave_units_out=wave_units_str, flux_units_out=flux_units_str)
-                obj_flux = read_flux_measurements(row, file1d, flux_df)
+                # Download the 2D spectrum
+                with st.spinner(f'2D spectrum file query'):
+                    file2d_bytes = download_from_path(service, full_path2d, secrets.connections.capers.root_id)
 
-                # Get line measurements
-                if obj_flux is not None:
-                    spec.load_frame(obj_flux)
-                    save_state('lines_df', obj_flux)
-                    save_state('bands_df', lime.bands_from_measurements(obj_flux))
-                    st.info('Line measurements located')
+                if file2d_bytes is not None:
+                    st.info('2D spectrum located')
+                    data_list, hdr_list = load_fits(file2d_bytes, data_ext_list=[1, 2], hdr_ext_list=[0, 1], url_check=False)
+                    save_state('2D_spectrum', (data_list, hdr_list))
+                else:
+                    st.warning('2D spectrum was not located')
 
-                # Save the data
-                save_state('spec', spec)
-                save_state('id', Path(file1d).stem)
+                # Download the 1D spectrum
+                with st.spinner(f'1D spectrum file query'):
+                    file1d_bytes = download_from_path(service, full_path1d, secrets.connections.capers.root_id)
 
-            else:
-                st.warning('1D spectrum was not located')
+                if file1d_bytes is not None:
+                    st.info('1D spectrum located')
 
-    #  Visualize the spectra
-    spec = s_state['spec']
-    fits_2d = s_state['2D_spectrum']
-    st.markdown("***")
+                    # Recover redshift from type priority
+                    row = df_selection.loc[idx_1D]
+                    z_obj = next((row[col].values[0] for col in ['z_gaussian', 'z_manual', 'z_aspect_key', 'z_UNICORN'] if notna(row[col].values)), None)
 
-    # 1D spectrum display
-    if spec is not None:
+                    # Get spectrum
+                    spec = load_spectrum(file1d_bytes, 'nirspec', z_obj, norm_flux=None, id_label=f'{obj}',
+                                         wave_units_out=wave_units_str, flux_units_out=flux_units_str)
+                    obj_flux = read_flux_measurements(row, file1d, flux_df)
 
-        # Object information
-        object_description(df_selection, idx_1D)
+                    # Get line measurements
+                    if obj_flux is not None:
+                        spec.load_frame(obj_flux)
+                        save_state('lines_df', obj_flux)
+                        save_state('bands_df', lime.bands_from_measurements(obj_flux))
+                        st.info('Line measurements located')
 
-        st.write(f'#### 1D spectrum')
-        plot_tab, objSheet_tab = st.tabs(['Plot', 'CAPERs data'])
+                    # Save the data
+                    save_state('spec', spec)
+                    save_state('id', Path(file1d).stem)
 
-        with plot_tab:
-            st.write(" ")
-            bokeh_spectrum('spec')
+                else:
+                    st.warning('1D spectrum was not located')
 
-        with objSheet_tab:
-            st.write(" ")
-            st.dataframe(df_selection.loc[idx_1D].T)
+        #  Visualize the spectra
+        spec = s_state['spec']
+        fits_2d = s_state['2D_spectrum']
+        st.markdown("***")
 
-    # 2D spectrum display
-    if fits_2d is not None:
-        st.write(f'#### 2D spectrum')
+        # 1D spectrum display
+        if spec is not None:
 
-        # Unpack the 2D data and display in tabs
-        data_list, hdr_list = fits_2d
-        spec2D_tab, hdr0_tab, hdr1_tab = st.tabs(['Plot', 'Header 0', 'Header 1'])
+            # Object information
+            object_description(df_selection, idx_1D)
 
-        with spec2D_tab:
-            wave_array = linspace(hdr_list[1]['WAVSTART']*1000000, hdr_list[1]['WAVEND']*1000000, hdr_list[1]['NAXIS1'])
-            flux_array = data_list[0]
-            bokeh_2D_spectrum(wave_array, flux_array)
+            st.write(f'#### 1D spectrum')
+            plot_tab, objSheet_tab = st.tabs(['Plot', 'CAPERs data'])
 
-        with hdr0_tab:
-            hdr_df = hdr_to_df(hdr_list[0])
-            st.dataframe(hdr_df, width=800)
+            with plot_tab:
+                st.write(" ")
+                bokeh_spectrum('spec')
 
-        with hdr1_tab:
-            hdr_df = hdr_to_df(hdr_list[1])
-            st.dataframe(hdr_df, width=800)
+            with objSheet_tab:
+                st.write(" ")
+                st.dataframe(df_selection.loc[idx_1D].T)
+
+        # 2D spectrum display
+        if fits_2d is not None:
+            st.write(f'#### 2D spectrum')
+
+            # Unpack the 2D data and display in tabs
+            data_list, hdr_list = fits_2d
+            spec2D_tab, hdr0_tab, hdr1_tab = st.tabs(['Plot', 'Header 0', 'Header 1'])
+
+            with spec2D_tab:
+                wave_array = linspace(hdr_list[1]['WAVSTART']*1000000, hdr_list[1]['WAVEND']*1000000, hdr_list[1]['NAXIS1'])
+                flux_array = data_list[0]
+                bokeh_2D_spectrum(wave_array, flux_array)
+
+            with hdr0_tab:
+                hdr_df = hdr_to_df(hdr_list[0])
+                st.dataframe(hdr_df, width=800)
+
+            with hdr1_tab:
+                hdr_df = hdr_to_df(hdr_list[1])
+                st.dataframe(hdr_df, width=800)
 
     return

@@ -430,12 +430,6 @@ def hdr_to_df(header):
     return df
 
 
-
-
-# import streamlit as st
-
-
-
 def download_button(download_filename, object_to_download):
     """
     Generates a link to download the given object_to_download.
@@ -486,15 +480,3 @@ def download_frame_form(fname, variable, button_label='Download'):
         st.form_submit_button(button_label, on_click=download_component, args=(fname, variable))
 
     return
-
-#
-# with st.form("my_form", clear_on_submit=False):
-#     # st.text_input("Column name", help="Name of column", key="col_name")
-#     # st.multiselect(
-#     #     "Entries", options=["A", "B", "C"], help="Entries in column", key="col_values"
-#     # )
-#     # st.text_input("Filename (must include .csv)", key="filename")
-#     fname =
-#     file_data =
-#
-#     submit = st.form_submit_button("Download dataframe", on_click=components.html(download_button(fname, file_data), height=0))
