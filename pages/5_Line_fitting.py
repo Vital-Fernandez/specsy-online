@@ -27,11 +27,11 @@ if spec is not None:
             tab_spectrum, tab_grid, tab_table = st.tabs(["Spectrum", "Grid plot", "Table"])
 
             with tab_spectrum:
-                st.markdown(f'## Line fittings over-plotted over spectrum')
+                st.markdown(f'## Line fittings over-plotted on spectrum')
                 bokeh_spectrum('spec')
 
             with tab_grid:
-                st.markdown(f'## Profile plot grid')
+                st.markdown(f'## Line profile grid')
                 fig_conf = {'figure.figsize': (3 * 2, 1.5 + 10 * int(spec.frame.index.size / 3)), 'figure.dpi' : 200}
                 lime_spec_plotting(spec, 'grid', n_cols=2, fig_cfg=fig_conf)
 

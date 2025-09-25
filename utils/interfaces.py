@@ -11,10 +11,13 @@ from specsy import extinction_coeff_calc
 from numpy import floor, ceil, intersect1d, sum, unique, sort, searchsorted
 
 from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
-                                widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg)
+                                widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg,
+                                save_objSample)
+
 from utils.tools import dynamic_input_data_editor
 from utils.plots import bokeh_spectrum, bokeh_bands, bokeh_extinction, matplotlib_bands
 from lime.archives.read_fits import SPECTRUM_FITS_PARAMS
+
 
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
                        'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
@@ -24,7 +27,7 @@ FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
 FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
 
 
-INSTRUMENT_LIST = ['sdss', 'osiris', 'isis', 'nirspec', 'text']
+INSTRUMENT_LIST = ['sdss', 'osiris', 'isis', 'nirspec', 'cos', 'text']
 
 
 def unit_conversion_inputs(column_wave, column_flux, label_wave, label_flux, default_wave_units=None, default_flux_units=None):
@@ -324,7 +327,7 @@ def match_bands_tab():
     col_parameters_1, col_parameters_2 = st.columns([0.5, 0.5], gap='large')
 
     spec = s_state['spec']
-    default_bands = spec.retrieve.line_bands()
+    default_bands = spec.retrieve.lines_frame()
     default_line_list = list(default_bands.index)
     default_particle_list = list(sort(unique(default_bands.particle.to_numpy())))
 
@@ -389,7 +392,7 @@ def match_bands_tab():
 
         # Generate bands
         spec = s_state['spec']
-        bands = spec.retrieve.line_bands(line_list=None if len(line_selection) == 0 else line_selection,
+        bands = spec.retrieve.lines_frame(line_list=None if len(line_selection) == 0 else line_selection,
                                          particle_list=None if len(particle_selection) == 0 else particle_selection,
                                          vacuum_waves=vacuum_check,
                                          components_detection=components_check,
@@ -544,6 +547,7 @@ def band_slider(column, label, idcs, idx_central, wave_array, min_val, max_val, 
         return slider_val[0] + idx_central, slider_val[1] + idx_central
         # return wave_array[slider_val[0] + idx_central], wave_array[slider_val[1] + idx_central]
 
+
 def start_bounds(spec, output_bands,):
     s_state.idx_label = output_bands.index[output_bands["label"] == s_state.line_selected][0]
     s_state.idx_central = searchsorted(spec.wave_rest.data, output_bands.loc[s_state.idx_label, 'wavelength'])
@@ -554,6 +558,7 @@ def start_bounds(spec, output_bands,):
     review_bounds()
 
     return
+
 
 def review_bounds():
 
@@ -577,8 +582,8 @@ def review_bounds():
 
     return
 
-def bands_review():
 
+def bands_review():
 
     spec = st.session_state.spec
 
@@ -630,14 +635,15 @@ def bands_review():
 
         # Display sliders
         colBlue, colCentral, colRed = st.columns(3, gap="large", vertical_alignment="center")
+        st.write(n_pixels)
         with colCentral:
-            st.slider("Central band idcs", -n_pixels, n_pixels, key="central", on_change=review_bounds)
+            st.slider("Central band idcs", min_value=-n_pixels, max_value=n_pixels, key="central", on_change=review_bounds)
 
         with colBlue:
-            st.slider("Lower band idcs", -n_pixels, 0, key="lower", on_change=review_bounds, disabled=exclude_cont_check)
+            st.slider("Lower band idcs", min_value=-n_pixels, max_value=0, key="lower", on_change=review_bounds, disabled=exclude_cont_check)
 
         with colRed:
-            st.slider("Upper band idcs", 0, n_pixels, key="upper", on_change=review_bounds, disabled=exclude_cont_check)
+            st.slider("Upper band idcs", min_value=0, max_value=n_pixels, key="upper", on_change=review_bounds, disabled=exclude_cont_check)
 
         # Save the bands
         idcs_array = array([s_state.lower[0], s_state.lower[1],
@@ -689,3 +695,78 @@ def display_menu():
             return
 
     return
+
+
+def samples_widgets_selection(input_df, sample_check=False, redshift_check=False, id_check=False, redshift_label="z_UNICORN",
+                      id_label=None, example_ids=None):
+
+    if sample_check or redshift_check:
+
+        col1, col2 = st.columns(2, gap='large')
+
+        # Sample selection
+        with col1:
+            if sample_check:
+                default_samples = input_df.index.get_level_values('sample').unique().to_numpy()
+                st.multiselect('**Sample selection:**', options=list(default_samples),
+                                key='sample_list', on_change=save_objSample, args=("sample_list",))
+
+        # Redshift range selection
+        with col2:
+            if redshift_check:
+                label_text = '**Redshift range:**'
+                help_text = f'The observations list will be limited to the input {redshift_label} range'
+                z_limits = floor(input_df.z_UNICORN.min()), ceil(input_df.z_UNICORN.max())
+
+                # Initial values for the range for first time
+                if s_state.get('z_range') is None:
+                    save_state('z_range', z_limits)
+
+                st.slider(label_text, min_value=z_limits[0], max_value=z_limits[1], step=0.2,
+                          key='z_range', help=help_text, on_change=save_objSample, args=("z_range",))
+
+
+    # IDs selection
+    if id_check:
+        label_text = '**Object selection (comma separated)**'
+        help_text = f'The observations list will be limited to the input "{id_label}"'
+        st.text_area(label=label_text, value=None, key='mpt_list', help=help_text, placeholder=example_ids,
+                     on_change=save_objSample, args=("mpt_list",),)
+
+    return
+
+
+def indexing_sheets(input_df, sample_list=None, z_range=None, ref_redshift=None, mpt_list=None, ID_hdr=None, ID_types=int):
+
+    # Sample indexing
+    if sample_list is not None:
+        idcs = input_df.index.get_level_values('sample').isin(s_state['sample_list'])
+    else:
+        idcs = input_df.index
+
+    # Redshift range indexing
+    if (z_range is not None) and (ref_redshift is not None):
+        idcs = idcs & (input_df[ref_redshift] >= z_range[0]) & (input_df[ref_redshift] <= z_range[1])
+
+    # Name selection
+    if (mpt_list is not None) and (mpt_list != "") and (ID_hdr is not None):
+        mpt_array = widget_text_to_list(mpt_list, ID_types)
+        idcs_selection = input_df[ID_hdr].isin(mpt_array)
+        mpt_found = input_df.loc[idcs_selection, ID_hdr].unique()
+        idcs = idcs & idcs_selection
+
+        if len(mpt_found) > 0:
+            msg = f'The object {mpt_found} was found on the dataset' if len(mpt_found) == 1 else f'The objects {mpt_found} were found on the dataset'
+            st.warning(msg)
+
+    n_objs = idcs.shape[0]
+
+    # No objects in selection
+    if n_objs == 0:
+        st.warning(f'There are not observations for the current selection')
+    else:
+        st.caption("")
+        st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download it.")
+        st.dataframe(input_df.loc[idcs])
+
+    return idcs, n_objs

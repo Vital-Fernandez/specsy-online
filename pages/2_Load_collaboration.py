@@ -4,6 +4,7 @@ from streamlit import session_state as s_state, secrets
 from utils.sidebar import sidebar_widgets
 from streamlit_authenticator import Authenticate
 from pages.collaborations.capers import capers_selection
+from pages.collaborations.stsci import lyc_cos_selection
 
 st.set_page_config(
     layout="wide",
@@ -27,20 +28,21 @@ authenticator = Authenticate(secrets.collaborations.credentials.to_dict(),
                              cookie_expiry_days=secrets.cookie.expiry_days)
 authenticator.login(location='main')
 
-if not s_state.get('authentication_status'):
-    st.write('Please login')
-
-else:
+if s_state.get('authentication_status'):
 
     # CAPERs survey
     if st.session_state.get("name") == 'capers':
         capers_selection()
 
-    # New cases
-    else:
-        st.write('Collaboration is not recognized')
+    # CAPERs survey
+    if st.session_state.get("name") == 'PID17515':
+        lyc_cos_selection()
 
     # Give the option to logout
     authenticator.logout(button_name='Collaboration logout', location='sidebar')
+
+# Not recognized
+else:
+    st.write('The credentials are not recognized. Please try again.')
 
 

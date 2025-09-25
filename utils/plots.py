@@ -102,7 +102,7 @@ def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=
     fig_cfg = {'figure.figsize': (2, 2), 'figure.dpi' : 200}
 
     fig = plt.figure()
-    spec.plot.bands(line, bands=bands, in_fig=fig,  include_fits=False, rest_frame=True, exclude_continua=exclude_continua,
+    spec.plot.bands(line, bands=bands, in_fig=fig, show_profile=False, rest_frame=True, show_continua=exclude_continua,
                     fig_cfg=fig_cfg)
     _colsA, colB, _colC = st.columns([0.2, 0.6, 0.2])
 

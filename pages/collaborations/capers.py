@@ -35,7 +35,6 @@ def object_description(input_df, idx_obj):
     msg = (f'**<span style="color:#AAD372;font-weight:bold;">MSA number</span>** '
            f'{int(input_df.loc[idx_obj].MPT_number.values[0])}')
     st.write(msg, unsafe_allow_html=True)
-    # st.write('')
 
     col1, col2, col3 = st.columns(3)
 
@@ -153,36 +152,19 @@ def capers_selection():
     # Author block
     msg = (f'These observations belong to the CANDELS-Area Prism Epoch of Reionization Survey. Mark Dickinson at NOIRLab (AZ)'
            f' is the P.I. of this proposal with reference JWST-GO-6368. Please contact the P.I. before using this dataset.\n\n'
-           f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the parameters description.')
+           f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the '
+           f'parameters description.')
     st.write(msg)
 
     # Connect to the online spreadsheets
-    files_df = read_collaboration_file_log('capers')
-    flux_df = read_collaboration_flux_log('capers')
+    files_df = read_collaboration_file_log('capers', ['sample', 'id', 'pointing'])
+    flux_df = read_collaboration_flux_log('capers', ['sample', 'id', 'file', 'line'])
 
     # Widgets to adjust selection
     widgets_selection(files_df)
 
     # Get indexes of entry in sheet
-    idcs_selection, n_objs = indexing_sheets(files_df)
-
-    # Display the sheet
-    # st.caption("")
-    # st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download the data.")
-    # default_tab, obser_tab, z_tab, files_tab = st.tabs(['ID', 'Observation', 'Redshift', 'Files'])
-    # with default_tab:
-    #     column_order = ['MPT_number', 'ra', 'dec', 'disp', 'Notes']
-    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-    # with obser_tab:
-    #     column_order = ['MPT_number', 'MSA_weight', 'n_nods_vis1', 'n_nods_vis2', 'n_nods_vis3', 'eff_exp_time', 'shutter_centering']
-    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-    # with z_tab:
-    #     column_order = ['MPT_number', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual', 'z_gaussian']
-    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-    # with files_tab:
-    #     column_order = ['MPT_number', 's2d', 'x1d', 'optext']
-    #     st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
-
+    idcs_selection, n_objs = indexing_sheets(files_df, ref_redshift='z_UNICORN')
 
     # No objects in selection
     if n_objs == 0:
@@ -242,11 +224,6 @@ def capers_selection():
                                                                     label_flux='Flux units out',
                                                                     default_wave_units='Angstrom',
                                                                     default_flux_units='FLAM')
-
-            # # Input wavelength and flux units
-            # wave_units_in, flux_units_in = unit_conversion_inputs(col_C, col_D, 'Wavelength units in', 'Flux units in',
-            #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_wave'],
-            #                                                       SPECTRUM_FITS_PARAMS[instrument]['units_flux'])
 
             # Run the query
             st.write('')

@@ -141,23 +141,21 @@ def get_user_parameters(username: str, params: Union[str, List[str]]) -> Union[N
 
 
 @st.cache_resource
-def read_collaboration_file_log(collaboration_name):
+def read_collaboration_file_log(collaboration_name, idx_list):
 
     conn = st.connection(collaboration_name, type=GSheetsConnection)
-    sheet_name = get_user_parameters('capers', 'file_sheet')
-    index_list = ['sample', 'id', 'pointing']
-    df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=index_list, header=0, sep=',')
-    df.index.names = index_list
+    sheet_name = get_user_parameters(collaboration_name, 'file_sheet')
+    df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=idx_list, header=0, sep=',')
+    df.index.names = idx_list
 
     return df
 
 
 @st.cache_resource
-def read_collaboration_flux_log(collaboration_name):
+def read_collaboration_flux_log(collaboration_name, index_list):
 
     conn = st.connection(collaboration_name, type=GSheetsConnection)
     sheet_name = get_user_parameters('capers', 'flux_sheet')
-    index_list = ['sample', 'id', 'file', 'line']
     df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=index_list, header=0, sep=',')
     df.index.names = index_list
 
@@ -274,12 +272,12 @@ def declare_atomic_data():
     return
 
 @st.cache_data
-def widget_text_to_list(str_list):
+def widget_text_to_list(str_list, id_types=int):
 
     if str_list is not None:
         output = str_list.replace('\n', '')
         output = output.replace(' ', '')
-        output = array(output.split(',')).astype(int)
+        output = array(output.split(',')).astype(id_types)
     else:
         output = None
 
@@ -331,6 +329,7 @@ def download_from_path(service, file_path, starting_parent_id='root'):
 
         if not folders:
             st.write(f"❌ Folder '{folder_name}' not found under '{parent_id}'")
+            st.write(f'Hay {path_parts}')
             return file_bytes
 
         parent_id = folders[0]['id']
@@ -388,13 +387,10 @@ def find_file_in_folder(service, file_name, folder_id):
 
 
 def search_folder_by_name(service, folder_name):
+
     query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-    response = service.files().list(
-        q=query,
-        fields="files(id, name, parents)",
-        supportsAllDrives=True,
-        includeItemsFromAllDrives=True
-    ).execute()
+    response = service.files().list(q=query, fields="files(id, name, parents)",
+                                    supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
 
     folders = response.get("files", [])
     if not folders:
@@ -406,14 +402,39 @@ def search_folder_by_name(service, folder_name):
             st.write(f"   Parents: {f.get('parents', [])}")
 
 
+# def download_binary_file(service, file_id):
+#     request = service.files().get_media(fileId=file_id)
+#     st.write(f'Download link {file_id}')
+#     fh = BytesIO()
+#     downloader = MediaIoBaseDownload(fh, request)
+#     done = False
+#     while not done:
+#         status, done = downloader.next_chunk()
+#     fh.seek(0)
+#     return fh
+
 def download_binary_file(service, file_id):
+    # First: get metadata about the file
+    file_metadata = service.files().get(fileId=file_id, fields="id, name, owners").execute()
+
+    # # Owners info is a list of dicts
+    # owners = file_metadata.get("owners", [])
+    # if owners:
+    #     for owner in owners:
+    #         st.write(f"Owner: {owner.get('displayName')} ({owner.get('emailAddress')})")
+    # else:
+    #     st.write("No owner info available")
+
+    # Then: download the content
     request = service.files().get_media(fileId=file_id)
+
     fh = BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
     while not done:
         status, done = downloader.next_chunk()
     fh.seek(0)
+
     return fh
 
 
