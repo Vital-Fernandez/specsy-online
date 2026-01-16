@@ -20,9 +20,10 @@ theme_lime.set_style('dark')
 theme_specsy.set_style('dark', library='bokeh')
 theme_innate.set_style('dark')
 
-DEFAULT_FIG_CFG = {'width':450, 'height':250,
-               "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
-               "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}}
+DEFAULT_FIG_CFG = {'width':450, 'height':250, 'active_scroll': None,
+                   "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
+                   "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}}
+
 
 def lime_spec_plotting(spec, plot_type='spectrum', **kwargs):
 
@@ -115,7 +116,6 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
 
     # Recover the spectrum
     spec = s_state[spec_key]
-    # st.write(bands.loc['O2_3726A_m', 'w3'])
 
     # Columns for the widgets
     col0, col1, col2, col3, col4 = st.columns([0.15, 0.25, 0.2, 0.2, 0.2], gap="small", vertical_alignment='center', border=False)
@@ -136,7 +136,6 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
     st.write("")
 
     fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
-
 
     # Get the line labels and the bands labels for the lines
     fig = spec.bokeh.spectrum(return_fig=True, bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,

@@ -17,9 +17,8 @@ st.set_page_config(
 
 # Sidebar information
 sidebar_widgets()
-
 # Introduction text
-st.markdown(f'# Collaborations virtual observatory')
+st.title(f'Collaborations virtual observatory')
 
 # Authenticate the user
 authenticator = Authenticate(secrets.collaborations.credentials.to_dict(),

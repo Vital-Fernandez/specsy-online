@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state, secrets
 from numpy import floor, ceil, intersect1d, sum, array, linspace, sort
-from pandas import notna, notnull
+from pandas import notna, notnull, DataFrame
 from pathlib import Path
 
 import lime
@@ -69,14 +69,14 @@ def object_description(input_df, idx_obj):
     return
 
 
-def widgets_selection(input_df):
-
+def widgets_selection(file_df, flux_df):
 
     col1, col2 = st.columns(2, gap='large')
 
     # Sample selection
     with col1:
-        default_samples = input_df.index.get_level_values('sample').unique().to_numpy()
+        st.write('esteCabron')
+        default_samples = file_df.index.get_level_values('sample').unique().to_list()
         st.multiselect('**Sample selection:**', options=list(default_samples),
                         key='sample_list', on_change=save_objSample, args=("sample_list",))
 
@@ -84,7 +84,7 @@ def widgets_selection(input_df):
     with col2:
         label_text = '**Redshift range:**'
         help_text = 'The observations list will be limited to the input "z_UNICORN" range'
-        z_limits = floor(input_df.z_UNICORN.min()), ceil(input_df.z_UNICORN.max())
+        z_limits = floor(file_df.z_UNICORN.min()), ceil(file_df.z_UNICORN.max())
 
         # Initial values for the range for first time
         if s_state.get('z_range') is None:
@@ -93,6 +93,13 @@ def widgets_selection(input_df):
         st.slider(label_text, min_value=z_limits[0], max_value=z_limits[1], step=0.2,
                   key='z_range', help=help_text, on_change=save_objSample, args=("z_range",))
 
+    # Line selection
+    if flux_df is not None:
+        line_list = sorted(flux_df.index.get_level_values('line').unique().tolist())
+        if line_list is not None:
+            help_text = 'The object selection will be limited to objects with the input lines'
+            st.multiselect('**Observed lines:**', options=line_list,  key='line_selection',
+                           on_change=save_objSample, args=("line_selection",), help=help_text)
 
     # Object selection
     label_text = '**MSA IDs (comma separated)**'
@@ -104,40 +111,46 @@ def widgets_selection(input_df):
     return
 
 
-def indexing_sheets(input_df, ref_redshift='z_UNICORN'):
+def indexing_sheets(files_df, flux_df, ref_redshift='z_UNICORN'):
 
     # Sample indexing
     if s_state.get('sample_list') is not None:
-        idcs = input_df.index.get_level_values('sample').isin(s_state['sample_list'])
+        idcs = files_df.index.get_level_values('sample').isin(s_state['sample_list'])
     else:
-        idcs = input_df.index
+        idcs = files_df.index
 
     # Redshift range indexing
     z_range = s_state.get('z_range')
     if z_range is not None:
-        idcs_redshift = idcs & (input_df[ref_redshift] >= z_range[0]) & (input_df[ref_redshift] <= z_range[1])
+        idcs = idcs & (files_df[ref_redshift].between(z_range[0], z_range[1]) | files_df[ref_redshift].isna())
+
+    # Line selection
+    line_selection = s_state.get('line_selection')
+    if len(line_selection) > 0:
+        idcs_lines = flux_df.loc[flux_df.index.get_level_values('line').isin(line_selection)].index
+        # st.dataframe(flux_df.loc[idcs_lines])
+        files = flux_df.loc[idcs_lines].index.get_level_values('file').unique()
+        st.write(files)
+        idcs_lines = files_df['optext'].isin(files)
+        st.write(idcs_lines.sum())
+
+        idcs = idcs & idcs_lines
 
     # Name selection
     mpt_list = s_state.get('mpt_list')
     if mpt_list is not None and mpt_list != "":
         mpt_array = widget_text_to_list(mpt_list)
-
-        idcs_selection = input_df['MPT_number'].isin(mpt_array)
-        mpt_found = input_df.loc[idcs_selection, 'MPT_number'].unique()
+        idcs_name = files_df['MPT_number'].isin(mpt_array)
+        mpt_found = files_df.loc[idcs_name, 'MPT_number'].unique()
         mpt_common = intersect1d(mpt_found, mpt_array)
-        idcs_name = idcs & idcs_selection
-
         if sum(mpt_common) > 0:
-            msg = f'The object {mpt_found} was found on the dataset' if len(mpt_common) == 1 else f'The objects {mpt_found} were found on the dataset'
-            st.warning(msg)
-    else:
-        idcs_name = None
+            if len(mpt_common) == 1:
+                msg = f'The object {mpt_found.astype(int)} was found on the dataset'
+            else:
+                msg = f'The objects {mpt_found.astype(int)} were found on the dataset'
+            st.success(msg)
 
-    # Return the idcs with all the filter included NaN redshift if the input name has been requested
-    if idcs_name is None:
-        idcs = idcs_redshift
-    else:
-        idcs = idcs_name
+        idcs = idcs & idcs_name
 
     return idcs, idcs.sum()
 
@@ -145,8 +158,7 @@ def indexing_sheets(input_df, ref_redshift='z_UNICORN'):
 def capers_selection():
 
     # Title
-    msg = f'## {s_state["username"].upper()}'
-    st.write(msg)
+    st.header(f'{s_state["username"].upper()} survey: sample criteria', divider='gray')
     st.write('')
 
     # Author block
@@ -154,33 +166,34 @@ def capers_selection():
            f' is the P.I. of this proposal with reference JWST-GO-6368. Please contact the P.I. before using this dataset.\n\n'
            f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the '
            f'parameters description.')
-    st.write(msg)
+    st.markdown(msg, text_alignment='justify')
 
     # Connect to the online spreadsheets
     files_df = read_collaboration_file_log('capers', ['sample', 'id', 'pointing'])
     flux_df = read_collaboration_flux_log('capers', ['sample', 'id', 'file', 'line'])
 
     # Widgets to adjust selection
-    widgets_selection(files_df)
+    widgets_selection(files_df, flux_df)
 
     # Get indexes of entry in sheet
-    idcs_selection, n_objs = indexing_sheets(files_df, ref_redshift='z_UNICORN')
+    idcs_selection, n_objs = indexing_sheets(files_df, flux_df, ref_redshift='z_UNICORN')
 
     # No objects in selection
     if n_objs == 0:
-        st.warning(f'There are not observations for the current selection')
+        st.warning(f'There are no spectra for the input selection criteria')
 
     else:
 
         st.caption("")
+
         st.caption("Use the tools in the upper-right corner to expand the table, hide columns, or download it.")
         column_order = ['MPT_number', 'ra', 'dec', 'disp', 'z_med', 'z_UNICORN', 'z_tier', 'z_aspect_key', 'z_manual',
                         'z_gaussian', 'Notes', 's2d', 'x1d', 'optext']
         st.dataframe(files_df.loc[idcs_selection], column_order=column_order)
 
         # Download spectra
-        st.markdown("***")
-        st.markdown(f'### Import *.fits* file')
+        st.space(size="small")
+        st.subheader("Object selection", divider='gray')
 
         # Cropped df
         df_selection = files_df.loc[idcs_selection]
