@@ -2,7 +2,6 @@ from matplotlib import pyplot as plt
 from bokeh.plotting import figure
 from bokeh.models import LinearColorMapper
 
-
 from lime.plotting.format import theme as theme_lime
 from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid, extinction_gradient
 from .input_output import load_infer_data
@@ -11,14 +10,15 @@ import streamlit as st
 from streamlit import session_state as s_state, secrets
 from streamlit_bokeh import streamlit_bokeh
 
-
 from astropy.visualization import ZScaleInterval
 
 Z_FUNC_CMAP = ZScaleInterval()
 
+
 theme_lime.set_style('dark')
 theme_specsy.set_style('dark', library='bokeh')
 theme_innate.set_style('dark')
+
 
 DEFAULT_FIG_CFG = {'width':450, 'height':250, 'active_scroll': None,
                    "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
@@ -133,13 +133,14 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
     with col4:
         comps_err = st.checkbox("Show uncertainty", value=False, key='show_err_check',
                                 help='Show spectrum flux uncertainty.')
-    st.write("")
 
+    st.write("")
     fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
 
     # Get the line labels and the bands labels for the lines
     fig = spec.bokeh.spectrum(return_fig=True, bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
                               include_components=comps_scale, include_fits=default_show_fits, show_err=comps_err)
+
     streamlit_bokeh(fig, key='input_spec')
 
     return

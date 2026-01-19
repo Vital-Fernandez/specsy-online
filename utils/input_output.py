@@ -59,7 +59,7 @@ DEFAULT_STATES = {'spec': None,
                   "z_limits": None,
                   '2D_spectrum': None,
                   "line_selection": [],
-                  "sample_list": ['CAPERS_UDS_V0.1', 'CAPERS_COSMOS_V0.2.1', 'CAPERS_EGS_V0.2.2'],
+                  "sample_list": ['CAPERS_UDS_V0.1', 'CAPERS_UDS_V0.4', 'CAPERS_COSMOS_V0.2.1', 'CAPERS_EGS_V0.2.2'],
                   }
 
 

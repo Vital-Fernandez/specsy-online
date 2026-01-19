@@ -36,13 +36,13 @@ else:
     if s_state.bands_df is not None:
 
         st.markdown('')
-        st.markdown(f'#### Manual adjustments:')
+        st.subheader('Manual adjustment', help=None, divider='gray', width="stretch", text_alignment="left")
+
         st.markdown(f'You can modify the cell values directly in the table below. Additionally, in the "Individual bands" tab,'
                     f' you can interactively adjust the wavelength intervals.')
         bands_review()
 
         # Download the bands to a file
-        st.markdown('***')
-        st.markdown(f'#### Save to a file:')
+        st.subheader('Download', help=None, divider='gray', width="stretch", text_alignment="left")
         st.markdown(f'Save bands selection to a text file.')
         download_frame_form(f'{s_state["id"]}_bands_df.txt', s_state.bands_df)

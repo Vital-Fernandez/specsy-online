@@ -10,8 +10,15 @@ from lime.archives.read_fits import load_fits
 
 from utils.interfaces import widget_text_to_list, unit_conversion_inputs
 from utils.input_output import save_objSample, save_state, gdrive_service, download_from_path, hdr_to_df, load_spectrum
-from utils.input_output import read_collaboration_file_log, read_collaboration_flux_log, clear_obj_data
+from utils.input_output import read_collaboration_file_log, read_collaboration_flux_log, clear_obj_data,LOCAL_FOLDER
 from utils.plots import bokeh_spectrum, bokeh_2D_spectrum
+
+from PIL import Image
+
+
+@st.cache_data
+def load_logo(file_address=LOCAL_FOLDER.parent/'resources/images/Logo_CAPERS_text_RGB.png'):
+    return Image.open(file_address)
 
 
 def read_flux_measurements(obj_series, obj_file, flux_sample):
@@ -75,7 +82,6 @@ def widgets_selection(file_df, flux_df):
 
     # Sample selection
     with col1:
-        st.write('esteCabron')
         default_samples = file_df.index.get_level_values('sample').unique().to_list()
         st.multiselect('**Sample selection:**', options=list(default_samples),
                         key='sample_list', on_change=save_objSample, args=("sample_list",))
@@ -128,13 +134,8 @@ def indexing_sheets(files_df, flux_df, ref_redshift='z_UNICORN'):
     line_selection = s_state.get('line_selection')
     if len(line_selection) > 0:
         idcs_lines = flux_df.loc[flux_df.index.get_level_values('line').isin(line_selection)].index
-        # st.dataframe(flux_df.loc[idcs_lines])
         files = flux_df.loc[idcs_lines].index.get_level_values('file').unique()
-        st.write(files)
-        idcs_lines = files_df['optext'].isin(files)
-        st.write(idcs_lines.sum())
-
-        idcs = idcs & idcs_lines
+        idcs = idcs & files_df['optext'].isin(files)
 
     # Name selection
     mpt_list = s_state.get('mpt_list')
@@ -158,15 +159,22 @@ def indexing_sheets(files_df, flux_df, ref_redshift='z_UNICORN'):
 def capers_selection():
 
     # Title
-    st.header(f'{s_state["username"].upper()} survey: sample criteria', divider='gray')
+    st.header(f'{s_state["username"].upper()} survey:', divider='gray')
     st.write('')
 
     # Author block
-    msg = (f'These observations belong to the CANDELS-Area Prism Epoch of Reionization Survey. Mark Dickinson at NOIRLab (AZ)'
-           f' is the P.I. of this proposal with reference JWST-GO-6368. Please contact the P.I. before using this dataset.\n\n'
-           f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the '
-           f'parameters description.')
-    st.markdown(msg, text_alignment='justify')
+    col_logo, col_author = st.columns([0.25, 0.75], gap='small')
+
+    with col_logo:
+        st.image( load_logo(), width=300)
+
+    with col_author:
+        st.space("large")
+        msg = (f'These observations belong to the CANDELS-Area Prism Epoch of Reionization Survey. Mark Dickinson at NOIRLab (AZ)'
+               f' is the P.I. of this proposal with reference JWST-GO-6368. Please contact the P.I. before using this dataset.\n\n'
+               f'This widgets below can be used to constrain the sample. Please check the CAPERS README file for the '
+               f'parameters description.')
+        st.markdown(msg, text_alignment='justify')
 
     # Connect to the online spreadsheets
     files_df = read_collaboration_file_log('capers', ['sample', 'id', 'pointing'])
@@ -242,6 +250,7 @@ def capers_selection():
             st.write('')
             help_msg=f'Press to download the spectra from CAPERS google drive.'
             submitted = st.form_submit_button("Load observation", help=help_msg)
+
 
             if submitted:
 

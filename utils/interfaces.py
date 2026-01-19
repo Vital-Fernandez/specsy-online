@@ -606,56 +606,57 @@ def bands_review():
         output_bands = dynamic_input_data_editor(st.session_state.in_bands, key="my_editor")
 
         # Display the bands
+        st.space('medium')
         bands_plot = output_bands.set_index('label') if isinstance(output_bands.index[0], int) else output_bands
         bokeh_spectrum('spec', bands_plot)
 
-    with tab_single:
-
-        colLabel, colWidth, colCont = st.columns(3, gap="large", vertical_alignment="center")
-        with colLabel:
-
-            if 'line_selected' not in s_state:
-                s_state['line_selected'] = output_bands.label.to_numpy()[0]
-                start_bounds(spec, output_bands)
-                st.info(output_bands.label.to_numpy()[0])
-
-            label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='line_selected',
-                                          on_change=start_bounds, args=(spec, output_bands, ))
-
-        with colWidth:
-            message_help = 'The maximum number of band pixels. Increase this number to extend the range of the bands'
-            n_pixels = st.number_input('Band max pixels number', min_value=5, max_value=150, value=30, step=1,
-                                       help=message_help)
-
-        with colCont:
-            st.write("")
-            st.write("")
-            message_help = 'The manual selection excludes the line bands'
-            exclude_cont_check = st.toggle("Exclude continua", value=True, key='toggle_exclude_continua', help=message_help)
-
-        # Display sliders
-        colBlue, colCentral, colRed = st.columns(3, gap="large", vertical_alignment="center")
-        st.write(n_pixels)
-        with colCentral:
-            st.slider("Central band idcs", min_value=-n_pixels, max_value=n_pixels, key="central", on_change=review_bounds)
-
-        with colBlue:
-            st.slider("Lower band idcs", min_value=-n_pixels, max_value=0, key="lower", on_change=review_bounds, disabled=exclude_cont_check)
-
-        with colRed:
-            st.slider("Upper band idcs", min_value=0, max_value=n_pixels, key="upper", on_change=review_bounds, disabled=exclude_cont_check)
-
-        # Save the bands
-        idcs_array = array([s_state.lower[0], s_state.lower[1],
-                           s_state.central[0], s_state.central[1],
-                           s_state.upper[0], s_state.upper[1]]) + s_state.idx_central
-        bands_arr = spec.wave_rest.data[idcs_array.astype(int)]
-
-        # bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
-        matplotlib_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
-
-        if s_state.idx_label in output_bands.index:
-            output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
+    # with tab_single:
+    #
+    #     colLabel, colWidth, colCont = st.columns(3, gap="large", vertical_alignment="center")
+    #     with colLabel:
+    #
+    #         if 'line_selected' not in s_state:
+    #             s_state['line_selected'] = output_bands.label.to_numpy()[0]
+    #             start_bounds(spec, output_bands)
+    #             st.info(output_bands.label.to_numpy()[0])
+    #
+    #         label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='line_selected',
+    #                                       on_change=start_bounds, args=(spec, output_bands, ))
+    #
+    #     with colWidth:
+    #         message_help = 'The maximum number of band pixels. Increase this number to extend the range of the bands'
+    #         n_pixels = st.number_input('Band max pixels number', min_value=5, max_value=150, value=30, step=1,
+    #                                    help=message_help)
+    #
+    #     with colCont:
+    #         st.write("")
+    #         st.write("")
+    #         message_help = 'The manual selection excludes the line bands'
+    #         exclude_cont_check = st.toggle("Exclude continua", value=True, key='toggle_exclude_continua', help=message_help)
+    #
+    #     # Display sliders
+    #     colBlue, colCentral, colRed = st.columns(3, gap="large", vertical_alignment="center")
+    #     st.write(n_pixels)
+    #     with colCentral:
+    #         st.slider("Central band idcs", min_value=-n_pixels, max_value=n_pixels, key="central", on_change=review_bounds)
+    #
+    #     with colBlue:
+    #         st.slider("Lower band idcs", min_value=-n_pixels, max_value=0, key="lower", on_change=review_bounds, disabled=exclude_cont_check)
+    #
+    #     with colRed:
+    #         st.slider("Upper band idcs", min_value=0, max_value=n_pixels, key="upper", on_change=review_bounds, disabled=exclude_cont_check)
+    #
+    #     # Save the bands
+    #     idcs_array = array([s_state.lower[0], s_state.lower[1],
+    #                        s_state.central[0], s_state.central[1],
+    #                        s_state.upper[0], s_state.upper[1]]) + s_state.idx_central
+    #     bands_arr = spec.wave_rest.data[idcs_array.astype(int)]
+    #
+    #     # bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
+    #     matplotlib_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
+    #
+    #     if s_state.idx_label in output_bands.index:
+    #         output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
 
     # Save modifications
     save_edited_bands(output_bands, 'bands_df')
