@@ -17,6 +17,7 @@ from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, 
 from utils.tools import dynamic_input_data_editor
 from utils.plots import bokeh_spectrum, bokeh_bands, bokeh_extinction, matplotlib_bands
 from lime.archives.read_fits import SPECTRUM_FITS_PARAMS
+from streamlit_authenticator import Authenticate
 
 
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
@@ -26,8 +27,9 @@ FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
 
 FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
 
-
 INSTRUMENT_LIST = ['sdss', 'osiris', 'isis', 'nirspec', 'cos', 'text']
+
+SURVEY_LIST = ['CEERS', 'CAPERS', 'PID17515']
 
 
 def unit_conversion_inputs(column_wave, column_flux, label_wave, label_flux, default_wave_units=None, default_flux_units=None):
@@ -317,6 +319,25 @@ def load_spectrum_tab():
 
             else:
                 st.warning('No spectrum file specified. Please provide one before proceeding.')
+
+    return
+
+
+def select_survey():
+
+    st.title(f'Virtual observatory')
+    st.space()
+    st.write(
+        "You may select a survey from the selection box below. Please note that some research projects may require "
+        "authentication — please contact the project's Principal Investigator (P.I.) for access.")
+
+    col_A, col_B = st.columns([0.25, 0.75], gap='large')
+
+    with col_A:
+        st.selectbox('Survey', SURVEY_LIST, key='survey_selection', help='Some surveys require authentification, '
+                                                                         'please contact the project PI.')
+
+    st.markdown("***")
 
     return
 
@@ -699,7 +720,7 @@ def display_menu():
 
 
 def samples_widgets_selection(input_df, sample_check=False, redshift_check=False, id_check=False, redshift_label="z_UNICORN",
-                      id_label=None, example_ids=None):
+                             id_label=None, example_ids=None):
 
     if sample_check or redshift_check:
 

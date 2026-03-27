@@ -2,20 +2,11 @@ import streamlit as st
 from utils.input_output import load_logo
 from utils.sidebar import sidebar_widgets
 
-# st.set_page_config(
-#     page_title="Ex-stream-ly Cool App",
-#     layout="wide",
-#     initial_sidebar_state="expanded",
-#     menu_items={'Get Help': 'https://www.extremelycoolapp.com/help',
-#         'Report a bug': "https://www.extremelycoolapp.com/bug",
-#         'About': "# This is a header. This is an *extremely* cool app!"
-#     }
-# )
 
 # Url menus
-menu_items = {  # 'About': f'## Specsy {sy.__version__} alpha release',
-    'Report a bug': "https://github.com/Vital-Fernandez/specsy"}
-st.set_page_config(page_title="SpecSy", menu_items=menu_items, layout='wide')
+st.set_page_config(page_title="SpecSy",
+                   menu_items={'Report a bug': "https://github.com/Vital-Fernandez/specsy"},
+                   layout='wide')
 
 # Sidebar
 sidebar_widgets()
@@ -25,7 +16,6 @@ col_logo, col_welcome = st.columns([0.4, 0.6], gap='large')
 
 with col_logo:
     image = load_logo()
-    # st.logo(image=image)
 
     st.image(image, width=300)
 
@@ -33,16 +23,16 @@ with col_welcome:
     st.markdown(f'# SpecSy')
 
 # Introduction text
-st.markdown("***")# Resources
+st.markdown("***")
 st.markdown(
-    """
-    <p style='font-size:20px;'>
-    Welcome to the Spectra Synthesis platform.
-    Use the sidebar menu to navigate the tools.
-    </p>
-    """,
-    unsafe_allow_html=True
-)
+                """
+                <p style='font-size:20px;'>
+                Welcome to the Spectra Synthesis platform.
+                Use the sidebar menu to navigate the tools.
+                </p>
+                """,
+                unsafe_allow_html=True
+            )
 
 # References
 with st.expander("Tools references", icon=":material/handyman:"):

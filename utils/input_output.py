@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 from pathlib import Path
 from PIL import Image
 from toml import loads
-from pandas import DataFrame
+from pandas import DataFrame, isnull
 from lime import load_frame, Spectrum
 from lime.io import parse_lime_cfg
 from specsy import load_frame as load_frame_sy, Innate
@@ -15,8 +15,8 @@ from specsy.innate import load_inference_data
 from innate import DataSet
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from io import BytesIO
 from googleapiclient.http import MediaIoBaseDownload
+from io import BytesIO
 from numpy import array
 from typing import Union, List, Dict
 import base64
@@ -49,6 +49,7 @@ DEFAULT_STATES = {'spec': None,
                   'Rv': 3.4,
                   'low_diag': 'Hagele_2006',
                   'high_diag': 'O3_4363A',
+                  # 'survey_selection': None,
 
                   # Intermediate steps
                   "in_bands": None,
@@ -59,8 +60,9 @@ DEFAULT_STATES = {'spec': None,
                   "z_limits": None,
                   '2D_spectrum': None,
                   "line_selection": [],
-                  "sample_list": ['CAPERS-COSMOS_DR0.4', 'CAPERS-UDS_DR0.4', 'CAPERS-EGS_DR0.4'],
+                  # "sample_list": ['CAPERS-COSMOS_DR0.4', 'CAPERS-UDS_DR0.4', 'CAPERS-EGS_DR0.4'],
                   }
+
 
 
 def set_defaults():
@@ -86,7 +88,23 @@ def widget_save_state(param):
     return
 
 
+def set_survey_user(param, auth):
+
+    # Clear the previous data
+    clear_obj_data()
+
+    # Holder for the survey
+    s_state[f'{param}_hold'] = s_state[f'{param}']
+
+    # Logout from collaboration
+    if st.session_state['authentication_status']:
+        auth.logout(location='unrendered')
+
+    return
+
+
 def clear_inputs_state(reset_defaults=True):
+
     s_state.clear()
 
     if reset_defaults:
@@ -156,7 +174,7 @@ def read_collaboration_file_log(collaboration_name, idx_list):
 def read_collaboration_flux_log(collaboration_name, index_list):
 
     conn = st.connection(collaboration_name, type=GSheetsConnection)
-    sheet_name = get_user_parameters('capers', 'flux_sheet')
+    sheet_name = get_user_parameters(collaboration_name, 'flux_sheet')
     df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=index_list, header=0, sep=',')
     df.index.names = index_list
 
@@ -183,7 +201,7 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
     # wave_units_out, flux_units_out
 
     # Unit conversion if necessary
-    spec_params = {'redshift': None if redshift is None or redshift == '' else float(redshift),
+    spec_params = {'redshift': None if (redshift is None or redshift == '' or isnull(redshift)) else float(redshift),
                    'id_label': None if id_label is None or id_label == '' else id_label,
                    'norm_flux': None if norm_flux is None else float(norm_flux),
                    'units_wave': units_wave_in,
@@ -236,8 +254,9 @@ def parse_frame_normalization(df):
 
 @st.cache_data
 def get_text_spectrum(spec_key):
-    recarray = s_state[spec_key].retrieve.spectrum()
+    recarray = s_state[spec_key].save_spectrum()
     return DataFrame.from_records(recarray)
+
 
 @st.cache_data
 def convert_for_download(df):
@@ -305,11 +324,10 @@ def save_objSample(param):
 @st.cache_resource
 def gdrive_service(collab):
 
-    # credentials = Credentials.from_service_account_info(secrets.connections.capers.to_dict(),
-    #                                                     scopes=['https://www.googleapis.com/auth/drive'])
-    service = build('drive', 'v3',
+    service = build(serviceName='drive',
+                    version='v3',
                     credentials=Credentials.from_service_account_info(secrets.connections.capers.to_dict(),
-                                                        scopes=['https://www.googleapis.com/auth/drive']))
+                                                                      scopes=['https://www.googleapis.com/auth/drive']))
 
     return service
 
@@ -403,17 +421,6 @@ def search_folder_by_name(service, folder_name):
             st.write(f"   Parents: {f.get('parents', [])}")
 
 
-# def download_binary_file(service, file_id):
-#     request = service.files().get_media(fileId=file_id)
-#     st.write(f'Download link {file_id}')
-#     fh = BytesIO()
-#     downloader = MediaIoBaseDownload(fh, request)
-#     done = False
-#     while not done:
-#         status, done = downloader.next_chunk()
-#     fh.seek(0)
-#     return fh
-
 def download_binary_file(service, file_id):
     # First: get metadata about the file
     file_metadata = service.files().get(fileId=file_id, fields="id, name, owners").execute()
@@ -502,3 +509,5 @@ def download_frame_form(fname, variable, button_label='Download'):
         st.form_submit_button(button_label, on_click=download_component, args=(fname, variable))
 
     return
+
+
