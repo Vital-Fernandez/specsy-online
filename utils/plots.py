@@ -9,7 +9,7 @@ from innate.plotting import theme as theme_innate
 import streamlit as st
 from streamlit import session_state as s_state, secrets
 from streamlit_bokeh import streamlit_bokeh
-
+from utils.input_output import save_objSample
 from astropy.visualization import ZScaleInterval
 
 Z_FUNC_CMAP = ZScaleInterval()
@@ -112,24 +112,28 @@ def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=
 
     return
 
-def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False):
+def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False, default_show_cont=False):
 
-    # Recover the spectrum
+    # Recover the spectrum AQUI ESTUVE
     spec = s_state[spec_key]
 
     # Columns for the widgets
-    col0, col1, col2, col3, col4 = st.columns([0.15, 0.25, 0.2, 0.2, 0.2], gap="small", vertical_alignment='center', border=False)
+    col0, col1, col2, col3, col4 = st.columns([0.15, 0.25, 0.2, 0.2, 0.2], gap="small",
+                                              vertical_alignment='center', border=False)
 
     with col1:
         label = f"Rest frame (z = {spec.redshift:0.3f})"
         rest_frame = st.checkbox(label, value=False, key='rest_frame_check',
-                               help='Display the observation in the observer rest frame.')
+                                  help='Display the observation in the observer rest frame.')
+
     with col2:
         log_scale = st.checkbox("Log scale", value=False, key='log_scale_check',
-                              help='Display the spectrum in logaritmic scale.')
+                                help='Display the spectrum in logaritmic scale.')
+
     with col3:
         comps_scale = st.checkbox("Show Components", value=default_components, key='components_check',
                                 help='Show spectrum components.')
+
     with col4:
         comps_err = st.checkbox("Show uncertainty", value=False, key='show_err_check',
                                 help='Show spectrum flux uncertainty.')
@@ -138,10 +142,11 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
     fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
 
     # Get the line labels and the bands labels for the lines
-    fig = spec.bokeh.spectrum(return_fig=True, bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
-                              include_components=comps_scale, include_fits=default_show_fits, show_err=comps_err)
+    spec.bokeh.spectrum(bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
+                        show_comps=comps_scale, include_fits=default_show_fits, show_err=comps_err, in_fig=None,
+                        show_cont=default_show_cont)
 
-    streamlit_bokeh(fig, key='input_spec')
+    streamlit_bokeh(spec.bokeh.fig, key='input_spec')
 
     return
 
@@ -183,3 +188,5 @@ def bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta):
     streamlit_bokeh(fig, key='extinction_plot')
 
     return
+
+

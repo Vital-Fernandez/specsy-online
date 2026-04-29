@@ -400,7 +400,7 @@ def match_bands_tab():
     st.markdown("")
     st.markdown(f'##### Features detection')
     message_help = 'Limits the line bands to the regions where lines are detected via [ASPECT algorithm](https://pypi.org/project/aspect-stable/)'
-    components_check = st.toggle("ML prediction", value=False, key='run_aspect_check', help=message_help)
+    components_check = st.toggle("Automatic grouping", value=False, key='run_aspect_check', help=message_help)
 
     st.markdown("")
     submitted = st.form_submit_button("Generate bands")
@@ -416,7 +416,7 @@ def match_bands_tab():
         bands = spec.retrieve.lines_frame(line_list=None if len(line_selection) == 0 else line_selection,
                                          particle_list=None if len(particle_selection) == 0 else particle_selection,
                                          vacuum_waves=vacuum_check,
-                                         components_detection=components_check,
+                                         components=components_check,
                                          adjust_central_band=adjust_central_bands,
                                          band_vsigma=None if v_bands_str is None else float(v_bands_str),
                                          n_sigma=None if n_sigma_str is None else float(n_sigma_str),

@@ -1,9 +1,9 @@
 import streamlit as st
-import numpy as np
+import specsy as sy
+from numpy import argsort
 from utils.sidebar import sidebar_widgets
-from utils.input_output import EXTINCTION_LAWS, parse_frame_normalization, load_emiss_grids, widget_save_state, LOW_DIAGS, HIGH_DIAGS
+from utils.input_output import EXTINCTION_LAWS, widget_save_state, LOW_DIAGS, HIGH_DIAGS
 from utils.plots import specy_infer_plotting
-from utils.operations import parce_direct_method
 from pathlib import Path
 from streamlit import session_state as s_state
 
@@ -29,8 +29,8 @@ if s_state['spec'] is not None:
 
             # Get indices that would sort the 'Surname' column
             st.markdown("***")
-            df = parse_frame_normalization(s_state['spec'].frame)
-            sorted_indices = np.argsort(df['particle'])
+            df = s_state['spec'].frame
+            sorted_indices = argsort(df['particle'])
             sorted_particles = df.index[sorted_indices].tolist()
             line_list = st.multiselect("Select lines for analysis", options=sorted_particles, key='particle_list',
                                             on_change=widget_save_state, args=("particle_list",))
@@ -43,7 +43,6 @@ if s_state['spec'] is not None:
                                           on_change=widget_save_state, args=("redcorr",))
             with col_rv:
                 Rv = st.number_input(r"$R_{V}$", key='Rv', on_change=widget_save_state, args=("Rv",))
-
 
             # Get extinction
             col_lowIonization, col_highIonization = st.columns([0.5, 0.5], gap='large')
@@ -62,16 +61,25 @@ if s_state['spec'] is not None:
                 approx_list = ['rgi', 'eqn', 'nn']
                 technique_label = st.selectbox('Select approximation', approx_list, key='tech_selection2')
 
-            # Generate the chemical model
-            dm_twoTemps = parce_direct_method(_emiss_grids=emiss_dataset, R_v=Rv, extinction_law=extinction, temp_low_diag=low_diag)
-
             # Run the model
-            output_file = LOCAL_FOLDER/'results'/'SHOC579_infer_db.nc'
             submitted = st.button("Fit model", key='button_dm')
 
+            # Launch the fitting
             if submitted:
+
+                output_file = LOCAL_FOLDER / 'results' / 'SHOC579_infer_db.nc'
+
+                spec_cfg = None
+                st.dataframe(spec.frame.loc[line_list])
+                obj = sy.Nebula.from_lines_frame(spec.frame.loc[line_list], spec_cfg)
+
+                # Generate the chemical model
+                obj.infer.direct_method.prepare_inputs(emissivity_source=emiss_dataset, norm_list='H1_4861A',
+                                                       normalize_flux=False,
+                                                       prior_cfg=spec_cfg.get('direct_method_priors'))
+
                 with st.spinner('Fitting model'):
-                    dm_twoTemps.fit.frame(df, lines_list=line_list, output_folder='./results/', results_label='SHOC579')
+                    obj.save(output_file)
 
                 st.write('Sampling finished')
                 if output_file.is_file():

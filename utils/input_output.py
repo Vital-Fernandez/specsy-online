@@ -10,9 +10,8 @@ from toml import loads
 from pandas import DataFrame, isnull
 from lime import load_frame, Spectrum
 from lime.io import parse_lime_cfg
-from specsy import load_frame as load_frame_sy, Innate
-from specsy.innate import load_inference_data
-from innate import DataSet
+from specsy import load_frame as load_frame_sy
+from innate import DataSet, load_dataset
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -183,7 +182,7 @@ def read_collaboration_flux_log(collaboration_name, index_list):
 
 @st.cache_resource
 def load_emiss_grids(fname):
-    return Innate(fname, x_space=[9000, 20000, 251], y_space=[1, 600, 101])
+    return load_dataset(fname, x_space=[9000, 20000, 251], y_space=[1, 600, 101])
 
 
 @st.cache_data
@@ -230,7 +229,7 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
 
 @st.cache_data
 def load_infer_data(file_address):
-    return load_inference_data(file_address)
+    return load_dataset(file_address)
 
 
 def parse_line_bands_df(uploaded_object):
@@ -247,9 +246,9 @@ def parse_fit_cfg(conf_string):
     return parse_lime_cfg(dict_toml)
 
 
-@st.cache_data
-def parse_frame_normalization(df):
-    return load_frame_sy(df, flux_type='profile', norm_line='H1_4861A')
+# @st.cache_data
+# def parse_frame_normalization(df):
+#     return load_frame_sy(df, flux_type='profile', norm_line='H1_4861A')
 
 
 @st.cache_data

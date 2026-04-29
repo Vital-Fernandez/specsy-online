@@ -3,10 +3,9 @@ from streamlit import session_state as s_state, secrets
 from utils.input_output import read_collaboration_file_log, read_collaboration_flux_log, clear_obj_data
 from utils.input_output import save_objSample, save_state, gdrive_service, download_from_path, hdr_to_df, load_spectrum
 from numpy import floor, ceil, sort
-from pandas import notnull
 from utils.interfaces import samples_widgets_selection, indexing_sheets, unit_conversion_inputs
 from pathlib import Path
-from utils.plots import bokeh_spectrum, bokeh_2D_spectrum
+from utils.plots import bokeh_spectrum
 
 
 
@@ -48,12 +47,8 @@ def lyc_cos_selection():
     idcs_obj = df_selection['object'] == obj
 
     # 1D selection
-    file1d_list = df_selection.loc[idcs_obj, 'filepath'].to_numpy()
-    file1d_list = file1d_list[notnull(file1d_list)]
-
+    file1d_list = df_selection.loc[idcs_obj, ["filepath", "LyAlpha_fitting"]].values.flatten().tolist()
     file1d = st.selectbox('1D spectrum file', options=file1d_list, help='Select spectrum to download')
-    idx_1D = idcs_obj & (df_selection['filepath'] == file1d)
-    full_path1d = file1d
 
     # Import spectra
     with st.form('load_capers', border=False, enter_to_submit=False, clear_on_submit=False):
@@ -79,16 +74,17 @@ def lyc_cos_selection():
 
             # Download the 1D spectrum
             with st.spinner(f'1D spectrum file query'):
-                file1d_bytes = download_from_path(service, full_path1d, secrets["collaborations"]["credentials"]["usernames"]["PID17515"]["root_id"])
+                file1d_bytes = download_from_path(service, file1d, secrets["collaborations"]["credentials"]["usernames"]["PID17515"]["root_id"])
 
             if file1d_bytes is not None:
                 st.info('1D spectrum located')
 
                 # Recover redshift from type priority
-                z_obj = df_selection.loc[idx_1D, 'redshift'].values[0]
+                z_obj = df_selection.loc[idcs_obj, 'redshift'].values
 
                 # Get spectrum
-                spec = load_spectrum(file1d_bytes, 'cos', z_obj, norm_flux=None, id_label=f'{obj}',
+                instrument = 'cos' if file1d.endswith('.fits') else 'text'
+                spec = load_spectrum(file1d_bytes, instrument, z_obj, norm_flux=None, id_label=f'{obj}',
                                      wave_units_out=wave_units_str, flux_units_out=flux_units_str)
 
                 # Save the data
@@ -98,40 +94,21 @@ def lyc_cos_selection():
             else:
                 st.warning('1D spectrum was not located')
 
+    # 1D spectrum display
+    if s_state.get('spec') is not None:
+
         #  Visualize the spectra
-        spec = s_state['spec']
         st.markdown("***")
 
-        # 1D spectrum display
-        if spec is not None:
+        st.write(f'#### 1D spectrum')
+        plot_tab, objSheet_tab = st.tabs(['Plot', 'Object data'])
 
-            # Object information
-            # object_description(df_selection, idx_1D)
+        with plot_tab:
+            st.write(" ")
+            bokeh_spectrum('spec')
 
-            st.write(f'#### 1D spectrum')
-            plot_tab, objSheet_tab = st.tabs(['Plot', 'Object data'])
-
-            with plot_tab:
-                st.write(" ")
-                bokeh_spectrum('spec')
-
-            with objSheet_tab:
-                st.write(" ")
-                st.dataframe(df_selection.loc[idx_1D].T)
-
-                # obj_flux = read_flux_measurements(row, file1d, flux_df)
-                #
-                # # Get line measurements
-                # if obj_flux is not None:
-                #     spec.load_frame(obj_flux)
-                #     save_state('lines_df', obj_flux)
-                #     save_state('bands_df', lime.bands_from_measurements(obj_flux))
-                #     st.info('Line measurements located')
-                #
-                # # Save the data
-                # save_state('spec', spec)
-                # save_state('id', Path(file1d).stem)
-
-
+        with objSheet_tab:
+            st.write(" ")
+            # st.dataframe(df_selection.loc[idcs_obj].T)
 
     return

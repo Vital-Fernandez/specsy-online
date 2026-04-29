@@ -50,7 +50,7 @@ def parse_str_list_to_arr(text: str, dtype, parse_none=True, err_msg=None, empty
         parts = text.split(",")
         convert = converters[dtype]
         try:
-            return array([convert(p) for p in parts], dtype=dtype)
+            return [convert(p) for p in parts]
         except ValueError:
             bad = [p for p in parts if not _is_float(p)]
             st.error(err_msg if err_msg else f"❌ Could not convert to {dtype.__name__}. Invalid value(s): `{', '.join(bad)}`")
@@ -64,62 +64,68 @@ sidebar_widgets()
 # Page structure
 st.markdown(f'# Continuum fitting')
 
-fname = '/home/vital/PycharmProjects/lime/examples/doc_notebooks/0_resources/spectra/sdss_dr18_0358-51818-0504.fits'
-s_state['spec'] = lime.Spectrum.from_file(fname, instrument='sdss')
+# fname = '/home/vital/PycharmProjects/lime/examples/doc_notebooks/0_resources/spectra/sdss_dr18_0358-51818-0504.fits'
+# s_state['spec'] = lime.Spectrum.from_file(fname, instrument='sdss')
+spec = s_state.get('spec')
 
 # Check file has been uploaded
-if s_state['spec'] is not None:
+if spec is not None:
 
     st.markdown(f'### The widgets below can be used to fit the spectrum continuum using a polynomial.')
 
     with st.form('aspect_form', border=False, enter_to_submit=False, clear_on_submit=False):
 
-        spec = s_state['spec']
+        # First set of parameters
+        col_listA = st.columns([0.25, 0.25, 0.25, 0.25], gap='small')
 
-
-        col_list = st.columns([0.25, 0.25, 0.25, 0.25], gap='small')
-
-        with col_list[0]:
+        with col_listA[0]:
             order_list = st.text_input('List polynomial orders', value='3, 4, 4', placeholder='3, 4, 4',
                                        help='')
 
-        with col_list[1]:
+        with col_listA[1]:
             emis_threshold = st.text_input('Emission intensity threshold', value='5, 4, 3', placeholder='5, 4, 3',
                                            help='')
 
-        with col_list[2]:
+        with col_listA[2]:
             abs_threshold = st.text_input('Absorption intensity threshold', value=None, placeholder='5, 4, 3',
                                           help='')
 
-        with col_list[3]:
+        with col_listA[3]:
             smooth_scale = st.selectbox('Smooth scale', options=[0,1,2,3,4,5,6,7,8,9,10], index=0,
                                         help='')
 
+        # Second set of parameters
+        col_listB = st.columns([0.75, 0.25], gap='small')
+
+        with col_listB[0]:
+            example_msg = '[[5700, 5800], [7100, 7200]]'
+            help_msg = ''
+            masked_intervals = st.text_input('Masked intervals', value=None, placeholder=example_msg, help=help_msg)
+
+        with col_listB[1]:
+            st.space("xxsmall")
+            st.space("xxsmall")
+            rest_intvls = st.checkbox("Rest frame", help='The masked intervals are declared in the rest frame')
+
         # Every form must have a submit button.
+        st.space('small')
         submitted = st.form_submit_button("Run fit")
 
         # Load the dataframe
         if submitted:
-
             order_list = parse_str_list_to_arr(order_list, dtype=int)
             emis_threshold = parse_str_list_to_arr(emis_threshold, dtype=float)
             abs_threshold = parse_str_list_to_arr(abs_threshold, dtype=float, parse_none=True)
             smooth_scale = None if smooth_scale == 0 else smooth_scale
 
-            st.write(order_list)
-            st.write(emis_threshold)
-            st.write(abs_threshold)
-            st.write(smooth_scale)
-
             # Make sure entries have the right format
-            spec.fit.continuum(degree_list=[3, 6, 6], emis_threshold=[3, 2, 1.5], smooth_scale=2)
-            spec.plot.spectrum()
-            # spec.infer.components(exclude_continuum=exclude_check)
+            spec.fit.continuum(degree_list=order_list, emis_threshold=emis_threshold, smooth_scale=smooth_scale)
 
-        # Show the plot
-    st.write('***')
-    if spec.infer.pred_arr is not None:
-        bokeh_spectrum('spec', default_components=True, default_show_fits=False)
+            # Display the spectrum
+            st.markdown("***")
+            bokeh_spectrum(spec_key='spec', default_components=False, default_show_fits=False,
+                           default_show_cont=True if spec.cont is not None else False)
+
 
 else:
 

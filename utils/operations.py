@@ -2,8 +2,7 @@ import streamlit as st
 from .plots import lime_spec_plotting
 from .input_output import save_state
 from specsy.models import DirectMethod
-import lime
-from matplotlib import pyplot as plt
+
 
 
 def compute_redshift(spec):
