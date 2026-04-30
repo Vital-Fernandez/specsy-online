@@ -1,7 +1,7 @@
-aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@main
-lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@main
-innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@main
-specsy @ git+https://github.com/Vital-Fernandez/specsy.git@main
+aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@master
+lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@master
+innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@master
+specsy @ git+https://github.com/Vital-Fernandez/specsy.git@master
 pyneb~=1.1.28
 bokeh==3.9.0
 streamlit==1.55.0
