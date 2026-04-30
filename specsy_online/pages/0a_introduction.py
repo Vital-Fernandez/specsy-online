@@ -1,6 +1,6 @@
 import streamlit as st
-from utils.input_output import load_logo
-from utils.sidebar import sidebar_widgets
+from specsy_online.utils.input_output import load_logo
+from specsy_online.utils.sidebar import sidebar_widgets
 
 
 # Url menus

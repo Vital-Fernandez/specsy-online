@@ -1,8 +1,8 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from utils.sidebar import sidebar_widgets
-from utils.interfaces import declare_line_measuring
-from utils.plots import lime_spec_plotting, bokeh_spectrum
+from specsy_online.utils.sidebar import sidebar_widgets
+from specsy_online.utils.interfaces import declare_line_measuring
+from specsy_online.utils.plots import lime_spec_plotting, bokeh_spectrum
 
 # Run the sidebar
 sidebar_widgets()

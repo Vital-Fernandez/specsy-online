@@ -1,10 +1,9 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from utils.sidebar import sidebar_widgets
-from utils.plots import bokeh_spectrum
-import lime
+from specsy_online.utils.sidebar import sidebar_widgets
+from specsy_online.utils.plots import bokeh_spectrum
 
-from numpy import array, ndarray
+from numpy import ndarray
 
 
 # def widget_text_to_list(str_list, id_types=int):

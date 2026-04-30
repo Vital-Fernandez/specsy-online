@@ -2,23 +2,20 @@ import streamlit as st
 from streamlit import session_state as s_state,secrets
 import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
-from numpy import argsort, abs, array, isnan
+from numpy import argsort
 from pyneb import RedCorr
-from pandas import notnull
 
 from lime.transitions import au, Line
 from specsy import extinction_coeff_calc
 from numpy import floor, ceil, intersect1d, sum, unique, sort, searchsorted
 
-from utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
-                                widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg,
-                                save_objSample)
+from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
+                                              widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg,
+                                              save_objSample)
 
-from utils.tools import dynamic_input_data_editor
-from utils.plots import bokeh_spectrum, bokeh_bands, bokeh_extinction, matplotlib_bands
+from specsy_online.utils.tools import dynamic_input_data_editor
+from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction
 from lime.archives.read_fits import SPECTRUM_FITS_PARAMS
-from streamlit_authenticator import Authenticate
-
 
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
                        'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'

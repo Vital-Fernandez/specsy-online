@@ -1,11 +1,8 @@
 import streamlit as st
 from streamlit import session_state as s_state
 
-import lime
-from utils.sidebar import sidebar_widgets
-from utils.interfaces import extinction_form
-from numpy import sort
-from utils.plots import matrix_plot
+from specsy_online.utils.sidebar import sidebar_widgets
+from specsy_online.utils.interfaces import extinction_form
 
 # Run the sidebar
 sidebar_widgets()

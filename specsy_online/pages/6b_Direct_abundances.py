@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from utils.formatting import REGION_TAGS_STYLE, REGION_TAGS_COLORS, REGION_LABELS, card_formating
+from specsy_online.utils.formatting import REGION_TAGS_STYLE, REGION_LABELS, card_formating
 
 
 

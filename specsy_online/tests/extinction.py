@@ -1,6 +1,6 @@
 import lime
 from specsy import extinction_coeff_calc
-from utils.plots import extinction_gradient
+from specsy_online.utils.plots import extinction_gradient
 
 
 lines_df = lime.load_frame(f'/home/vital/Dropbox/Astrophysics/Tools/SpectralSynthesis/Online_example_data/SHOC579_measurements.txt')

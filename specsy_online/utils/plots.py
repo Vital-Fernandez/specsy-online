@@ -7,9 +7,8 @@ from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corne
 from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
 import streamlit as st
-from streamlit import session_state as s_state, secrets
+from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
-from utils.input_output import save_objSample
 from astropy.visualization import ZScaleInterval
 
 Z_FUNC_CMAP = ZScaleInterval()

@@ -22,3 +22,13 @@ dependencies = ["aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.g
                 "st-gsheets-connection~=0.1",
                 "google-api-python-client~=2.187.0"]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["specsy_online*"]
+
+[project.scripts]
+specsy = "specsy_online.launcher:main"
+
+[tool.setuptools.package-data]
+specsy_online = ["resources/data/*",
+                 "resources/images/*", ]

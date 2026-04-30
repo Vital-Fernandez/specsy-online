@@ -1,11 +1,11 @@
 import streamlit as st
 from streamlit import session_state as s_state, secrets
 
-from utils.sidebar import sidebar_widgets
-from utils.interfaces import  SURVEY_LIST
-from utils.input_output import set_survey_user
-from pages.collaborations.capers import survey_selection
-from pages.collaborations.stsci import lyc_cos_selection
+from specsy_online.utils.sidebar import sidebar_widgets
+from specsy_online.utils.interfaces import  SURVEY_LIST
+from specsy_online.utils.input_output import set_survey_user
+from specsy_online.pages.collaborations.capers import survey_selection
+from specsy_online.pages.collaborations.stsci import lyc_cos_selection
 from streamlit_authenticator import Authenticate
 
 # Page configuration

@@ -1,6 +1,6 @@
 import streamlit as st
-from utils.sidebar import sidebar_widgets
-from utils.interfaces import load_spectrum_tab, display_menu
+from specsy_online.utils.sidebar import sidebar_widgets
+from specsy_online.utils.interfaces import load_spectrum_tab, display_menu
 
 # Sidebar information
 sidebar_widgets()

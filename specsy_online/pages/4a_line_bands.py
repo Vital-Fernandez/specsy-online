@@ -1,8 +1,8 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from utils.sidebar import sidebar_widgets
-from utils.interfaces import bands_review, match_bands_tab, load_frame_tab
-from utils.input_output import download_frame_form
+from specsy_online.utils.sidebar import sidebar_widgets
+from specsy_online.utils.interfaces import bands_review, match_bands_tab, load_frame_tab
+from specsy_online.utils.input_output import download_frame_form
 
 # Run the sidebar
 sidebar_widgets()
