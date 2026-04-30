@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specsy-online"
+version = "0.7.0"
+readme = "README.rst"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
+description = "Streamlit wrapper for Specsy Functions"
+dependencies = ["aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@main",
+                "lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@main",
+                "innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@main",
+                "specsy[tensors] @ git+https://github.com/Vital-Fernandez/specsy.git@main",
+                "pyneb~=1.1.28",
+                "bokeh==3.9.0",
+                "streamlit==1.55.0",
+                "streamlit_bokeh==3.9.0",
+                "streamlit-authenticator==0.4.2",
+                "st-gsheets-connection~=0.1",
+                "google-api-python-client~=2.187.0"]
+

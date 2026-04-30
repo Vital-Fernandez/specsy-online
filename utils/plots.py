@@ -112,7 +112,8 @@ def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=
 
     return
 
-def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False, default_show_cont=False):
+def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False,
+                   default_show_cont=False, display_figure=True):
 
     # Recover the spectrum AQUI ESTUVE
     spec = s_state[spec_key]
@@ -146,9 +147,58 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
                         show_comps=comps_scale, include_fits=default_show_fits, show_err=comps_err, in_fig=None,
                         show_cont=default_show_cont)
 
+    if display_figure:
+        streamlit_bokeh(spec.bokeh.fig, key='input_spec')
+
+    return spec.bokeh.fig
+
+
+
+def LyC_bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False,
+                       default_show_cont=False, display_figure=True, reg_params=None):
+
+    # Recover the spectrum AQUI ESTUVE
+    spec = s_state[spec_key]
+
+    # Columns for the widgets
+    col0, col1, col2, col3, col4 = st.columns([0.15, 0.25, 0.2, 0.2, 0.2], gap="small",
+                                              vertical_alignment='center', border=False)
+
+    with col1:
+        label = f"Rest frame (z = {spec.redshift:0.3f})"
+        rest_frame = st.checkbox(label, value=False, key='rest_frame_check',
+                                  help='Display the observation in the observer rest frame.')
+
+    with col2:
+        log_scale = st.checkbox("Log scale", value=False, key='log_scale_check',
+                                help='Display the spectrum in logaritmic scale.')
+
+    with col3:
+        comps_scale = st.checkbox("Show Components", value=default_components, key='components_check',
+                                help='Show spectrum components.')
+
+    with col4:
+        comps_err = st.checkbox("Show uncertainty", value=False, key='show_err_check',
+                                help='Show spectrum flux uncertainty.')
+
+    st.write("")
+    fig_cfg = DEFAULT_FIG_CFG if fig_cfg is None else fig_cfg
+
+    # Get the line labels and the bands labels for the lines
+    spec.bokeh.spectrum(bands=bands, fig_cfg=fig_cfg, rest_frame=rest_frame, log_scale=log_scale,
+                        show_comps=comps_scale, include_fits=default_show_fits, show_err=comps_err, in_fig=None,
+                        show_cont=default_show_cont)
+
+    # Reg profile
+    if reg_params is not None:
+        z_corr = (1 + spec.redshift) if rest_frame else 1
+        spec.bokeh.fig.line(reg_params['wave_reg'] / z_corr, reg_params['flux_reg'] * z_corr, legend_label="Voigtfit .reg",
+                       line_color=theme_lime.colors['cont'], line_dash="dashed", line_width=2)
+
     streamlit_bokeh(spec.bokeh.fig, key='input_spec')
 
     return
+
 
 def bokeh_2D_spectrum(wave_array, flux_array, limits=None):
 

@@ -41,8 +41,6 @@ DEFAULT_STATES = {'spec': None,
                   'lines_df': None,
                   'fit_cfg': None,
                   'emiss_dataset': None,
-                  'particle_list': ['H1_4340A', 'O3_4363A', 'O3_4959A', 'O3_5007A', 'S3_6312A',
-                                    'H1_6563A', 'S2_6716A', 'S2_6731A', 'O2_7319A', 'O2_7330A'],
                   'obs_type': None,
                   'redcorr': 'G03 LMC',
                   'Rv': 3.4,
@@ -192,12 +190,8 @@ def load_logo(file_address=LOGO_PATH):
 
 @st.cache_data
 def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=None, units_flux_in=None, id_label=None,
-                  delimiter=None, comments=None, skiprows=None, usecols=None, wave_units_out=None, flux_units_out=None):
+                  delimiter=None, comments='#', skiprows=1, usecols=None, wave_units_out=None, flux_units_out=None):
 
-
-    # uploaded_file, instrument, z_string, norm_flux_string, wave_units_in, flux_units_in,
-    # uploaded_file.name, separator, comments, skiprows, use_cols,
-    # wave_units_out, flux_units_out
 
     # Unit conversion if necessary
     spec_params = {'redshift': None if (redshift is None or redshift == '' or isnull(redshift)) else float(redshift),
@@ -205,7 +199,6 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
                    'norm_flux': None if norm_flux is None else float(norm_flux),
                    'units_wave': units_wave_in,
                    'units_flux': units_flux_in,
-
                    'delimiter': delimiter,
                    'comments': comments,
                    'skiprows': skiprows,
@@ -222,7 +215,10 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
     spec = Spectrum.from_file(input_file, instrument, **spec_params)
 
     if (wave_units_out is not None) and (flux_units_out is not None):
-        spec.unit_conversion(wave_units_out, flux_units_out)
+        if spec.units_flux.physical_type != 'dimensionless':
+            spec.unit_conversion(wave_units_out, flux_units_out)
+        else:
+            st.warning(f'The spectrum has dimensionless flux units. No conversion was applied.')
 
     return spec
 

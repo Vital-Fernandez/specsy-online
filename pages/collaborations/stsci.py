@@ -1,11 +1,13 @@
+import bokeh
 import streamlit as st
-from streamlit import session_state as s_state, secrets
-from utils.input_output import read_collaboration_file_log, read_collaboration_flux_log, clear_obj_data
-from utils.input_output import save_objSample, save_state, gdrive_service, download_from_path, hdr_to_df, load_spectrum
-from numpy import floor, ceil, sort
-from utils.interfaces import samples_widgets_selection, indexing_sheets, unit_conversion_inputs
+
 from pathlib import Path
-from utils.plots import bokeh_spectrum
+from numpy import floor, ceil, sort, loadtxt
+from streamlit import session_state as s_state, secrets
+from utils.input_output import read_collaboration_file_log, clear_obj_data
+from utils.input_output import save_state, gdrive_service, download_from_path, load_spectrum
+from utils.interfaces import samples_widgets_selection, indexing_sheets, unit_conversion_inputs
+from utils.plots import LyC_bokeh_spectrum
 
 
 
@@ -47,8 +49,10 @@ def lyc_cos_selection():
     idcs_obj = df_selection['object'] == obj
 
     # 1D selection
-    file1d_list = df_selection.loc[idcs_obj, ["filepath", "LyAlpha_fitting"]].values.flatten().tolist()
+    file1d_list = df_selection.loc[idcs_obj, ["filepath", "LyAlpha_fitting", "metals_fitting"]].values.flatten().tolist()
     file1d = st.selectbox('1D spectrum file', options=file1d_list, help='Select spectrum to download')
+    reg_key = None if file1d.endswith('.fits') else ('LyAlpha' if 'LyAlpha' in file1d else 'metals')
+
 
     # Import spectra
     with st.form('load_capers', border=False, enter_to_submit=False, clear_on_submit=False):
@@ -75,6 +79,10 @@ def lyc_cos_selection():
             # Download the 1D spectrum
             with st.spinner(f'1D spectrum file query'):
                 file1d_bytes = download_from_path(service, file1d, secrets["collaborations"]["credentials"]["usernames"]["PID17515"]["root_id"])
+
+                if reg_key is not None:
+                    filereg = f'LyC_leakers_COS/{obj}_{reg_key}_best_fit.reg'
+                    reg1d_bytes = download_from_path(service, filereg, secrets["collaborations"]["credentials"]["usernames"]["PID17515"]["root_id"])
 
             if file1d_bytes is not None:
                 st.info('1D spectrum located')
@@ -105,7 +113,15 @@ def lyc_cos_selection():
 
         with plot_tab:
             st.write(" ")
-            bokeh_spectrum('spec')
+
+            # Add the LyC analysis data
+            if reg_key is not None:
+                wave_reg, flux_reg, err_reg, best_fit, mask_reg,  = loadtxt(reg1d_bytes, comments='#', unpack=True)
+                reg_params = {'wave_reg': wave_reg, 'flux_reg': best_fit}
+            else:
+                reg_params = None
+
+            LyC_bokeh_spectrum(spec_key='spec', reg_params=reg_params)
 
         with objSheet_tab:
             st.write(" ")
