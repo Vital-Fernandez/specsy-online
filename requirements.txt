@@ -1,3 +1,4 @@
+-e .
 aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@master
 lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@master
 innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@master
