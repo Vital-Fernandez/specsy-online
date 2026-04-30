@@ -10,10 +10,10 @@ requires-python = ">=3.11"
 license = "GPL-3.0-or-later"
 authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
 description = "Streamlit wrapper for Specsy Functions"
-dependencies = ["aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@main",
-                "lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@main",
-                "innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@main",
-                "specsy[tensors] @ git+https://github.com/Vital-Fernandez/specsy.git@main",
+dependencies = ["aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@HEAD",
+                "lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@HEAD",
+                "innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@HEAD",
+                "specsy[tensors] @ git+https://github.com/Vital-Fernandez/specsy.git@HEAD",
                 "pyneb~=1.1.28",
                 "bokeh==3.9.0",
                 "streamlit==1.55.0",
