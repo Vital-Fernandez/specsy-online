@@ -1,7 +1,7 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 from streamlit import session_state as s_state, secrets
 import streamlit_authenticator as stauth
+from streamlit_gsheets import GSheetsConnection
 import streamlit.components.v1 as components
 
 from pathlib import Path

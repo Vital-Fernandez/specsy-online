@@ -2,10 +2,12 @@ import streamlit as st
 
 
 def dynamic_input_data_editor(data, key, **_kwargs):
+
     """
     Like streamlit's data_editor but allows re-initialization when `data` changes.
     Fixes issue where Streamlit does not update the editor on first run.
     """
+
     changed_key = f'{key}__changed'
     initial_data_key = f'{key}__initial_data'
 

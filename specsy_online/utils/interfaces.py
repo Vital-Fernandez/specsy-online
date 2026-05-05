@@ -1,10 +1,11 @@
 import streamlit as st
+from os import cpu_count
 from streamlit import session_state as s_state,secrets
 import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
-from numpy import argsort
+from numpy import argsort, random
 from pyneb import RedCorr
-
+from pandas import DataFrame
 from lime.transitions import au, Line
 from specsy import extinction_coeff_calc
 from numpy import floor, ceil, intersect1d, sum, unique, sort, searchsorted
@@ -16,6 +17,12 @@ from specsy_online.utils.input_output import (save_state, load_spectrum, parse_l
 from specsy_online.utils.tools import dynamic_input_data_editor
 from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction
 from lime.archives.read_fits import SPECTRUM_FITS_PARAMS
+from specsy_online.utils.formatting import REGION_TAGS_STYLE, REGION_LABELS, card_formating
+import tomllib
+import tomlkit
+from textwrap import dedent
+
+from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
 
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
                        'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
@@ -339,68 +346,172 @@ def select_survey():
     return
 
 
-def match_bands_tab():
+def parse_toml_input(toml_text):
+    try:
+        st.session_state.bands_cfg = dict(tomlkit.loads(toml_text))
+        st.success("Configuration loaded successfully!")
+    except tomlkit.exceptions.ParseError as e:
+        st.error(f"Invalid TOML syntax: {e}")
+    except Exception as e:
+        st.error(f"Unexpected error parsing configuration: {e}")
+
+def on_toml_change():
+    toml_text = st.session_state[f"toml_input_{st.session_state.toml_area_key}"]
+    if toml_text.strip() == "":
+        st.session_state.bands_cfg = {}
+    else:
+        try:
+            st.session_state.bands_cfg = tomlkit.loads(toml_text).unwrap()
+            st.session_state.toml_text = toml_text
+        except tomlkit.exceptions.ParseError as e:
+            st.error(f"Invalid TOML syntax: {e}")
+        except Exception as e:
+            st.error(f"Unexpected error parsing configuration: {e}")
+
+
+def add_kinematic_components():
+    selected_lines = st.session_state.selected_lines
+    if not selected_lines:
+        st.warning("Please select at least one line.")
+        return
+
+    cfg = st.session_state.bands_cfg
+    section = "default_line_fitting"
+
+    for line in selected_lines:
+        cfg[section][f"{line}_b"] = f"{line}+{line}_k-1"
+        cfg[section][f"{line}_k-1_sigma"] = f"expr:>1.0*{line}_sigma"
+
+    st.session_state.bands_cfg = cfg
+    st.session_state.toml_text = tomlkit.dumps(cfg)
+    st.session_state.toml_area_key += 1
+
+def compute_bands():
+
+    # Initial configuration values
+    if "bands_cfg" not in st.session_state:
+        st.session_state.bands_cfg = {
+            "default_line_fitting": {
+                "O2_3726A_m": "O2_3726A+O2_3729A",
+                "O2_7325A_b": "O2_7319A_m+O2_7330A_m",
+                "O2_7325A_m": "O2_7319A_m+O2_7330A_m",
+                "O2_7319A_m": "O2_7319A+O2_7320A",}}
+
+    if "toml_area_key" not in st.session_state:
+        st.session_state.toml_area_key = 0
+
+    if "toml_text" not in st.session_state:
+        st.session_state.toml_text = tomlkit.dumps(st.session_state.bands_cfg)
 
     # Input spectra definition
-    col_parameters_1, col_parameters_2 = st.columns([0.5, 0.5], gap='large')
+    col_parameters_1, col_parameters_2 = st.columns([0.60, 0.40], gap='large')
 
     spec = s_state['spec']
-    default_bands = spec.retrieve.lines_frame()
-    default_line_list = list(default_bands.index)
-    default_particle_list = list(sort(unique(default_bands.particle.to_numpy())))
+    def_df = spec.retrieve.lines_frame()
+    def_linelist = def_df.index.sort_values().to_list()
+    default_particle_list = list(def_df.particle.sort_values().unique())
 
     with col_parameters_1:
 
-        st.markdown("")
-        st.markdown(f'##### Transitions selection')
-        st.markdown("")
-
-        # Line selection
-        with st.expander('Line selection',expanded=True):
-            help_message = 'Bands will be limited to these transitions. These candidate list was cropped to the observation wavelength range'
-            line_selection = st.multiselect(label='Limit to selection', options=default_line_list, default=None,
-                                            key='lines_band_list', help=help_message, placeholder='All', label_visibility="collapsed")
+        st.markdown(f'##### Transitions')
 
         # Particle selection
         help_message = 'Bands will be limited to these particles. These candidate list was cropped to the observation wavelength range'
-        particle_selection = st.multiselect('Particle selection:', options=default_particle_list, placeholder='All', default=None,
+        part_list = st.multiselect('Particle selection:', options=default_particle_list, placeholder='All', default=None,
                                         key='particle_bands_list', help=help_message)
+
+        # Line selection
+        help_message = 'Select the transitions for the output lines table. By default all lines will be considered'
+
+        in_lines = def_linelist if len(part_list) == 0 else def_df.loc[def_df.particle.isin(part_list)].index.sort_values().to_list()
+        line_selection = st.multiselect(label='Selected lines', options=in_lines, default=None,
+                                        key='lines_band_list', help=help_message, placeholder='All',
+                                        label_visibility="visible")
+
+
+        help_message = 'Excludes lines from the output lines table.'
+        in_lines = def_linelist if len(part_list) == 0 else def_df.loc[def_df.particle.isin(part_list)].index.sort_values().to_list()
+        rejected_lines = st.multiselect(label='Rejected lines', options=in_lines, default=None,
+                                        key='rejected_band_list', help=help_message, placeholder='None',
+                                        label_visibility="visible")
 
         # All wavelengths are in vacuum
         st.markdown("")
         help_message = 'Set all transition wavelengths to vacuum values. The default behaviour is transitions 2000Å < λ < 10000Å with air values.'
         vacuum_check = st.toggle("Vacuum wavelengths", value=False, key='vacuum_check', help=help_message)
 
-    with col_parameters_2:
-
-        st.markdown("")
+        st.space('small')
         st.markdown(f'##### Central bands width')
-        st.markdown("")
+
+        # Bands kinematics
+        col1, col2, col3, col4, col5= st.columns([0.2, 0.25, 0.15, 0.15, 0.3], gap='small')
 
         # Central bandwidth correction
-        message_help='Adjust the central line band using the "bands kinematic" width and the "sigma number"'
-        adjust_central_bands = st.toggle("Adjust bands", value=True, key='adjust_central_bands', help=message_help)
+        with col1:
+            st.space('xxsmall')
+            st.space('xxsmall')
+            message_help='Adjust the central line band using the "bands kinematic" width and the "sigma number"'
+            adjust_central_bands = st.toggle("Adjust bands width", value=True, key='adjust_central_bands', help=message_help)
 
-        # band_vsigma
-        message_help='This is the bands with in Gaussian standard deviations. The default value is 70 km/s for emission line galaxies.'
-        v_bands_str = st.text_input('Bands kinematic width (km/s)', value=70, help=message_help)
-
-        # number of sigmas
-        message_help='This is the number of Gaussian sigmas to compute the bands with.'
-        n_sigma_str = st.text_input('Sigma number', value=4, key='n_sigma_str', help=message_help)
+        # Band_vsigma
+        with col2:
+            st.space('xxsmall')
+            st.space('xxsmall')
+            message_help = 'Use an approximation for the observation resolving power to account for the instrument broadening'
+            instr_corr_check = st.toggle("Instrumental correction", value=True, key='instr_corr_check', help=message_help,
+                                         disabled=not adjust_central_bands)
 
         # Instrument correction check
-        message_help = 'Use an approximation for the observation resolving power to account for the instrument broadening'
-        instr_corr_check = st.toggle("Instrumental correction", value=True, key='instr_corr_check', help=message_help)
+        with col3:
+            msg = 'This is the bands with in Gaussian standard deviations. The default value is 70 km/s for emission line galaxies.'
+            v_bands_str = st.number_input('Velocity width (km/s)', min_value=1, value=70, step=20, key='bands_velocity',
+                                          help=msg, disabled=not adjust_central_bands)
 
-    # Detect spectrum components correction check
-    st.markdown("")
-    st.markdown(f'##### Features detection')
-    message_help = 'Limits the line bands to the regions where lines are detected via [ASPECT algorithm](https://pypi.org/project/aspect-stable/)'
-    components_check = st.toggle("Automatic grouping", value=False, key='run_aspect_check', help=message_help)
+        # number of sigmas
+        with col4:
+            msg='This is the number of Gaussian sigmas to compute the bands with.'
+            n_sigma_str = st.number_input('Sigma number', min_value=1, value=4, step=1, key='n_sigma_str',
+                                          help=msg, disabled=not adjust_central_bands)
 
-    st.markdown("")
-    submitted = st.form_submit_button("Generate bands")
+
+    with col_parameters_2:
+
+        # Kinematic components row
+        colA, colB = st.columns([0.5, 0.5])
+        LINES = ["O3_5007A", "O3_4959A", "H1_4861A", "H1_6563A"]
+
+        with colA:
+            st.multiselect(
+                label="Select lines",
+                options=LINES,
+                placeholder="Choose lines to add kinematic components",
+                key="selected_lines",
+            )
+
+        with colB:
+            st.write("")
+            st.write("")
+            st.button(
+                label="Add kinematic components",
+                on_click=add_kinematic_components,
+                use_container_width=True,
+            )
+
+        st.markdown(f'##### Fitting configuration')
+        st.text_area(
+                    label="Bands configuration",
+                    value=st.session_state.toml_text,
+                    height=300,
+                    help="Enter your bands configuration in TOML format",
+                    key=f"toml_input_{st.session_state.toml_area_key}",
+                    on_change=on_toml_change,
+                )
+
+    st.json(st.session_state.bands_cfg)
+
+    # Generate the bands
+    st.space('small')
+    submitted = st.button("Generate bands")
 
     if submitted:
 
@@ -411,14 +522,15 @@ def match_bands_tab():
         # Generate bands
         spec = s_state['spec']
         bands = spec.retrieve.lines_frame(line_list=None if len(line_selection) == 0 else line_selection,
-                                         particle_list=None if len(particle_selection) == 0 else particle_selection,
-                                         vacuum_waves=vacuum_check,
-                                         components=components_check,
-                                         adjust_central_band=adjust_central_bands,
-                                         band_vsigma=None if v_bands_str is None else float(v_bands_str),
-                                         n_sigma=None if n_sigma_str is None else float(n_sigma_str),
-                                         instrumental_correction=instr_corr_check,
-                                         update_latex=False)
+                                          particle_list=None if len(part_list) == 0 else part_list,
+                                          vacuum_waves=vacuum_check,
+                                          automatic_grouping=False,
+                                          rejected_lines=rejected_lines,
+                                          adjust_central_band=adjust_central_bands,
+                                          band_vsigma=None if v_bands_str is None else float(v_bands_str),
+                                          n_sigma=None if n_sigma_str is None else float(n_sigma_str),
+                                          instrumental_correction=instr_corr_check,
+                                          update_latex=False)
         save_state('bands_df', bands)
 
     return
@@ -434,7 +546,7 @@ def load_frame_tab(frame_key):
         uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
 
         # Every form must have a submit button.
-        submitted = st.form_submit_button("Upload frame")
+        submitted = st.button("Upload frame")
 
         # Load the dataframe
         if submitted:
@@ -789,3 +901,173 @@ def indexing_sheets(input_df, sample_list=None, z_range=None, ref_redshift=None,
         st.dataframe(input_df.loc[idcs])
 
     return idcs, n_objs
+
+
+@st.cache_data
+def load_demo_data() -> DataFrame:
+    rng = random.default_rng(42)
+    transitions = ["H1_4861A", "H1_6563A", "O2_3726A", "O2_3729A", "O3_4363A",
+                    "O3_4959A", "O3_5007A", "S2_6717A", "S2_6731A", "S3_6312A",
+                    "S3_9069A", "N2_6548A", "N2_6584A", "He1_5876A", "He2_4686A",
+                    "Ar3_7136A", "Ar4_4711A", "Ar4_4740A", "Ne3_3869A", "Ne3_3968A",]
+    particles = [t.split("_")[0] for t in transitions]
+    fluxes    = rng.lognormal(mean=0.0, sigma=1.2, size=len(transitions)).round(4)
+    return DataFrame({"particle": particles, "flux": fluxes}, index=transitions)
+
+# Region cards
+def get_taken_particles(region_labels, current_region_idx):
+    taken = set()
+    for i, lbl in enumerate(region_labels):
+        if i == current_region_idx:
+            continue
+        key = f"region_{lbl}_particles"
+        taken.update(st.session_state.get(key, []))
+    return taken
+
+
+def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': None, 'eqT3': None, 'eqT4': None},
+                                           DEN_DICT = {'eqNe1': None, 'eqNe2': None, 'eqNe3': None, 'eqNe4': None}):
+
+    if obs_df is None:
+        obs_df = load_demo_data()
+
+    all_particles = sorted(obs_df["particle"].unique().tolist())
+
+    # Formating for the labels
+    st.markdown(REGION_TAGS_STYLE, unsafe_allow_html=True)
+
+    # Number of regions selectbox
+    n_regions = st.selectbox(label="Number of regions", options=[1, 2, 3, 4], key="n_regions",
+                             help="Changing the number of regions clears all widget state.")
+
+    # ── Session-state reset when n_regions changes ────────────────────────────────
+    _sentinel_key = f"__sentinel_{n_regions}__"
+    if _sentinel_key not in st.session_state:
+        for k in list(st.session_state.keys()):
+            if k.startswith("region_"):
+                del st.session_state[k]
+        st.session_state[_sentinel_key] = True
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    region_labels = REGION_LABELS[n_regions]
+
+    # Loop through the regions and produce the widgets
+    cols = st.columns(n_regions, gap="medium")
+    for idx, (col, region_name) in enumerate(zip(cols, region_labels)):
+
+        with col:
+
+            # Region label
+            st.markdown(card_formating(region_name), unsafe_allow_html=True)
+
+            # Particle selection
+            taken = get_taken_particles(region_labels, idx)
+            available_particles = [p for p in all_particles if p not in taken]
+            sel_particles = st.multiselect(label="Species", options=available_particles,
+                                           key=f"region_{region_name}_particles",
+                                           help="Select the ionic species assigned to this region. Particles chosen here are"
+                                                " removed from other regions.")
+
+            # Line selection
+            matching_lines = obs_df[obs_df["particle"].isin(sel_particles)].index.tolist() if sel_particles else []
+            st.multiselect(label="Lines to exclude", options=matching_lines, default=[],
+                           key=f"region_{region_name}_exclude",
+                           help="Lines selected here will be excluded from the fit. By default all matching lines are included.")
+
+            # Temperature - density modes
+            c3, c4 = st.columns(2)
+            select_box_msg = "Tied to region ->"
+
+            with c3:
+                temp_mode = st.selectbox(label="Temperature mode", options=["free", "tied"],
+                                         key=f"region_{region_name}_temp_mode")
+                if temp_mode == "tied":
+                    options = REGION_LABELS[n_regions] + ['relation']
+                    options.remove(region_name)
+                    st.selectbox(label=select_box_msg, options=options, key=f"region_{region_name}_temp_tied_to")
+                    st.selectbox(label="Temperature equation", options=['None'] + list(TEM_DICT.keys()), key=f"region_{region_name}_temp_relation")
+
+            with c4:
+                den_mode = st.selectbox(label="Density mode", options=["free", "tied"],
+                                        key=f"region_{region_name}_den_mode")
+                if den_mode == "tied":
+                    options = REGION_LABELS[n_regions] + ['relation']
+                    options.remove(region_name)
+                    st.selectbox(label=select_box_msg, options=options, key=f"region_{region_name}_den_tied_to")
+                    st.selectbox(label="Relation", options=['None'] + list(DEN_DICT.keys()), key=f"region_{region_name}_den_relation")
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # # Create a dictionary with the parameters
+    # struct_dict = {}
+    # for idx, label in enumerate(REGION_LABELS[st.session_state['n_regions']]):
+    #     struct_dict[f'r{idx}'] = {"name": st.session_state.get(f"region_{label}_particles"),
+    #                           "species": st.session_state.get(f"region_{region_name}_particles", []),
+    #                           "temp_mode": st.session_state.get(f"region_{label}_temp_mode"),
+    #                           "den_mode": st.session_state.get(f"region_{label}_den_mode"),
+    #                           "temp_tied_to": st.session_state.get(f"region_{label}_temp_tied_to"),
+    #                           "den_tied_to": st.session_state.get(f"region_{label}_den_tied_to"),
+    #                           "temp_eq": st.session_state.get(f"region_{label}_temp_relation"),
+    #                           "den_eq": st.session_state.get(f"region_{label}_den_relation"),
+    #                           }
+    #
+    # st.session_state['struct_dict'] = struct_dict
+
+    return
+
+def sampler_cfg_widget():
+
+    cores_max = cpu_count()
+    cores_recomended = max(1, cores_max - 4)
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        st.number_input("Draws", min_value=100, value=1000, step=500, key='draws_pymc')
+
+    with col2:
+        st.number_input("Tune", min_value=100, value=2000, step=200, key='tune_pymc')
+
+    with col3:
+        st.number_input(f"Chains (max = {cores_max})", min_value=1, max_value=cores_max,
+                                 value=cores_recomended, step=1, key='chains_pymc')
+
+    with col4:
+        st.number_input(f"Cores (max = {cores_max})", min_value=1, max_value=cores_max,
+                                value=cores_recomended, step=1, key='cores_pymc')
+
+    with col5:
+        st.selectbox("NUTS sampler", options=["numpyro", "pymc", "blackjax"], key='sampler_pymc')
+
+
+    return
+
+
+def make_sampling_callback():
+
+    total_steps = s_state['draws_pymc'] * s_state['chains_pymc']  # callback only fires on draws, not tune
+    chain_draws = {i: 0 for i in range(s_state['chains_pymc'])}
+
+    progress_bar = st.progress(0, text="Sampling...")
+
+    def sampling_callback(trace, draw):
+        if not draw.tuning:
+            chain_draws[draw.chain] += 1
+            completed = sum(chain_draws.values())
+            progress = min(completed / total_steps, 1.0)
+            progress_bar.progress(progress,
+                                  text=f"Chain {draw.chain + 1}/{s_state['chains_pymc']} | draw {chain_draws[draw.chain]}/{s_state['draws_pymc']}")
+
+    s_state['nebula'].infer.direct_method.run(draws=s_state['draws_pymc'], tune=s_state['tune_pymc'],
+                                             target_accept=0.9, chains=s_state['chains_pymc'],
+                                             cores=s_state['cores_pymc'], callback=sampling_callback,
+                                             nuts_sampler=s_state['sampler_pymc'])
+
+    progress_bar.progress(1.0, text="Sampling complete!")
+
+    st.balloons()
+
+    return
+
+

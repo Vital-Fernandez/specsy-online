@@ -44,8 +44,3 @@ if spec is not None:
                 string_DF = log_df.to_string()
                 table_name = s_state['id'].replace('.fits', '_frame.txt')
                 st.download_button('Download', data=string_DF.encode('UTF-8'), file_name=table_name)
-
-# else:
-#     st.markdown("***")
-#     st.markdown(f'#### Please upload a spectrum before fitting the lines')
-#

@@ -31,6 +31,9 @@ REGION_LABELS = {1: ["region"],
                  3: ["low", "med", "high"],
                  4: ["low", "med", "high", "vhigh"]}
 
+COLUMNS_STRUCT = ['line_flux', 'line_flux_err', 'wavelength', 'region', 'particle', 'norm_line', 'f_lambda',
+                  'temp', 'den', 'eq_temp', 'eq_den']
+
 
 def card_formating(label):
     msg = (f'<div class="region-card region-{label}">'

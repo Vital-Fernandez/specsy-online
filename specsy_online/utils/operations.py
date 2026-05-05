@@ -1,8 +1,7 @@
 import streamlit as st
+from streamlit import session_state as sstate
 from .plots import lime_spec_plotting
 from .input_output import save_state
-from specsy.models import DirectMethod
-
 
 
 def compute_redshift(spec):
@@ -26,5 +25,31 @@ def compute_redshift(spec):
     return
 
 
-def parce_direct_method(_emiss_grids, R_v, extinction_law, temp_low_diag):
-    return DirectMethod(emiss_grids=_emiss_grids, R_v=R_v, extinction_law=extinction_law, temp_low_diag=temp_low_diag)
+def structure_manager(region_label):
+
+    struct_dict = {'region': {}}
+    for idx, label in enumerate(region_label[st.session_state['n_regions']]):
+        struct_dict['region'][f'r{idx}'] = {"name": label,
+                                            "temp_mode": sstate.get(f"region_{label}_temp_mode"),
+                                            "den_mode": sstate.get(f"region_{label}_den_mode"),
+                                            "temp_ref": sstate.get(f"region_{label}_temp_tied_to"),
+                                            "den_ref": sstate.get(f"region_{label}_den_tied_to"),
+                                            "temp_eq": sstate.get(f"region_{label}_temp_relation"),
+                                            "den_eq": sstate.get(f"region_{label}_den_relation")}
+
+        if len(sstate.get(f"region_{label}_particles", [])) > 0:
+            struct_dict['region'][f'r{idx}']['species'] = sstate.get(f"region_{label}_particles")
+        else:
+            struct_dict['region'][f'r{idx}']['species'] = None
+
+        if struct_dict['region'][f'r{idx}']['temp_eq'] is 'None':
+            struct_dict['region'][f'r{idx}']['temp_eq'] = None
+        if struct_dict['region'][f'r{idx}']['den_eq'] is 'None':
+            struct_dict['region'][f'r{idx}']['den_eq'] = None
+
+    sstate['structure_dict'] = struct_dict
+
+    return
+
+# def parce_direct_method(_emiss_grids, R_v, extinction_law, temp_low_diag):
+#     return DirectMethod(emiss_grids=_emiss_grids, R_v=R_v, extinction_law=extinction_law, temp_low_diag=temp_low_diag)

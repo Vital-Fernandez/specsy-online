@@ -4,15 +4,17 @@ from bokeh.models import LinearColorMapper
 
 from lime.plotting.format import theme as theme_lime
 from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid, extinction_gradient
+from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
 from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
 import streamlit as st
 from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
 from astropy.visualization import ZScaleInterval
+from arviz import summary
+
 
 Z_FUNC_CMAP = ZScaleInterval()
-
 
 theme_lime.set_style('dark')
 theme_specsy.set_style('dark', library='bokeh')
@@ -23,6 +25,20 @@ DEFAULT_FIG_CFG = {'width':450, 'height':250, 'active_scroll': None,
                    "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
                    "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}}
 
+
+def df_to_mathjax_html(df):
+    headers = "".join(f"<th>{col}</th>" for col in df.columns)
+    rows = ""
+    for _, row in df.iterrows():
+        cells = "".join(f"<td>{val}</td>" for val in row)
+        rows += f"<tr>{cells}</tr>"
+    return f"""
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <table border="1" style="border-collapse:collapse; width:100%">
+      <thead><tr>{headers}</tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+    """
 
 def lime_spec_plotting(spec, plot_type='spectrum', **kwargs):
 
@@ -231,6 +247,7 @@ def bokeh_2D_spectrum(wave_array, flux_array, limits=None):
 
     return
 
+
 def bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta):
 
     fig = extinction_gradient(cHbeta, cHbeta_err, log_extinc, rel_Hbeta=rel_Hbeta, return_fig=True, fig_cfg=DEFAULT_FIG_CFG)
@@ -239,3 +256,31 @@ def bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta):
     return
 
 
+def trace_diagnostics_plots(trace):
+
+    tabSummary, tabTraces, tabKDE = st.tabs(tabs=['Summary', 'Traces', 'Scatter plot matrix'])
+
+    # Trace plot
+    with tabSummary:
+        df = summary(trace)
+        st.dataframe(df, column_order=['mean', 'sd', 'hdi_3%', 'hdi_97%', 'r_hat'])
+
+        fig_cfg = None
+        fig = bokeh_flux_grid(trace, in_fig=None, fig_cfg=fig_cfg, n_cols=10)
+        streamlit_bokeh(fig)
+
+    # Scatter plot matrix
+    with tabTraces:
+        fig_cfg = {'width': 200, 'height': 100}
+        fig = bokeh_trace(trace, in_fig=None, fig_cfg=fig_cfg)
+        streamlit_bokeh(fig)
+
+    # Flux grid
+    with tabKDE:
+        fig_cfg = None
+        fig = bokeh_scatter_matrix(trace, in_fig=None, fig_cfg=fig_cfg)
+        streamlit_bokeh(fig)
+
+    st.write(f'tab1 = {tabSummary.open}, tab2 = {tabTraces.open}, tab3 = {tabKDE.open}')
+
+    return

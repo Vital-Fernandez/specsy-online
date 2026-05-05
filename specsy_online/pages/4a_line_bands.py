@@ -1,9 +1,9 @@
 import streamlit as st
 from streamlit import session_state as s_state
 from specsy_online.utils.sidebar import sidebar_widgets
-from specsy_online.utils.interfaces import bands_review, match_bands_tab, load_frame_tab
+from specsy_online.utils.interfaces import bands_review, compute_bands, load_frame_tab
 from specsy_online.utils.input_output import download_frame_form
-
+from lime import Spectrum
 # Run the sidebar
 sidebar_widgets()
 
@@ -20,17 +20,17 @@ if s_state['spec'] is None:
 else:
 
     # Generate the bands
-    with st.form('load_bands_form', border=True, enter_to_submit=False, clear_on_submit=False):
+    # with st.form('load_bands_form', border=True, enter_to_submit=False, clear_on_submit=False):
 
-        tab_infer, tab_upload = st.tabs(["Match to observation", "Load from file"])
+    tab_infer, tab_upload = st.tabs(["Match to observation", "Load from file"])
 
-        # Load spectrum
-        with tab_infer:
-            match_bands_tab()
+    # Load spectrum
+    with tab_infer:
+        compute_bands()
 
-        # Query surveys
-        with tab_upload:
-            load_frame_tab('bands_df')
+    # Query surveys
+    with tab_upload:
+        load_frame_tab('bands_df')
 
     # Adjust the bands
     if s_state.bands_df is not None:
