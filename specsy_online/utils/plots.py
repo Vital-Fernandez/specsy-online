@@ -1,3 +1,4 @@
+import numpy as np
 from matplotlib import pyplot as plt
 from bokeh.plotting import figure
 from bokeh.models import LinearColorMapper
@@ -5,6 +6,7 @@ from bokeh.models import LinearColorMapper
 from lime.plotting.format import theme as theme_lime
 from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid, extinction_gradient
 from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
+from tests.test_tools import wave_array
 from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
 import streamlit as st
@@ -12,6 +14,7 @@ from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
 from astropy.visualization import ZScaleInterval
 from arviz import summary
+from bokeh.models import TapTool, CustomJS, ColumnDataSource, BoxAnnotation, Span
 
 
 Z_FUNC_CMAP = ZScaleInterval()
@@ -40,6 +43,7 @@ def df_to_mathjax_html(df):
     </table>
     """
 
+
 def lime_spec_plotting(spec, plot_type='spectrum', **kwargs):
 
     if plot_type == 'spectrum':
@@ -58,6 +62,7 @@ def lime_spec_plotting(spec, plot_type='spectrum', **kwargs):
     st.pyplot(fig, transparent=True)
 
     return
+
 
 def specy_infer_plotting(address_db, plot_type):
 
@@ -87,6 +92,7 @@ def specy_infer_plotting(address_db, plot_type):
 
     return
 
+
 def matrix_plot(grid):
 
     fig = plt.figure()#(tight_layout=True, figsize=(8,8), dpi=200)
@@ -96,6 +102,7 @@ def matrix_plot(grid):
     st.pyplot(fig, transparent=True)
 
     return
+
 
 def bokeh_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=True):
 
@@ -109,6 +116,7 @@ def bokeh_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=True)
     streamlit_bokeh(fig, key='bands_plot')
 
     return
+
 
 def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=True):
 
@@ -126,6 +134,7 @@ def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=
         st.pyplot(fig, transparent=True, use_container_width=True)
 
     return
+
 
 def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False,
                    default_show_cont=False, display_figure=True):
@@ -163,10 +172,9 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
                         show_cont=default_show_cont)
 
     if display_figure:
-        streamlit_bokeh(spec.bokeh.fig, key='input_spec')
+        streamlit_bokeh(spec.bokeh.fig, key='input_spec', use_container_width=True)
 
     return spec.bokeh.fig
-
 
 
 def LyC_bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, default_components=False,
@@ -281,6 +289,30 @@ def trace_diagnostics_plots(trace):
         fig = bokeh_scatter_matrix(trace, in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
 
-    st.write(f'tab1 = {tabSummary.open}, tab2 = {tabTraces.open}, tab3 = {tabKDE.open}')
+    # Download data
+
+
+    return
+
+
+def plot_bokeh_bands(wave_plot, flux_plot, selected_line, bands_arr, log_check):
+
+    y_axis_type = "log" if log_check else "linear"
+
+    source = ColumnDataSource(dict(wave=wave_plot, flux=flux_plot))
+
+    p = figure(width=800, height=350, title=selected_line, x_axis_label='Wavelength (Å)', y_axis_label='Flux',
+               y_axis_type=y_axis_type, tools="xpan,xwheel_zoom,reset,save")
+
+    p.step('wave', 'flux', source=source, color=theme_specsy.colors['fg'], line_width=1)
+
+    p.add_layout(BoxAnnotation(left=bands_arr[0], right=bands_arr[1],
+                               fill_color=theme_specsy.colors['cont_band'], fill_alpha=0.2))
+    p.add_layout(BoxAnnotation(left=bands_arr[2], right=bands_arr[3],
+                               fill_color=theme_specsy.colors['line_band'], fill_alpha=0.2))
+    p.add_layout(BoxAnnotation(left=bands_arr[4], right=bands_arr[5],
+                               fill_color=theme_specsy.colors['cont_band'], fill_alpha=0.2))
+
+    streamlit_bokeh(p, use_container_width=True)
 
     return

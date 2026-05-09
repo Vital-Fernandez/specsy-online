@@ -26,13 +26,13 @@ REGION_TAGS_COLORS = {"region": "#ffa657", "low": "#58a6ff",
                       "med": "#3fb950", "high": "#f78166", "vhigh": "#d2a8ff"}
 
 
-REGION_LABELS = {1: ["region"],
+REGION_LABELS = {1: ["low"],
                  2: ["low", "high"],
                  3: ["low", "med", "high"],
                  4: ["low", "med", "high", "vhigh"]}
 
 COLUMNS_STRUCT = ['line_flux', 'line_flux_err', 'wavelength', 'region', 'particle', 'norm_line', 'f_lambda',
-                  'temp', 'den', 'eq_temp', 'eq_den']
+                  'temp', 'den', 'eq_temp', 'eq_den', 'eq_flux']
 
 
 def card_formating(label):

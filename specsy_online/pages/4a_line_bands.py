@@ -20,8 +20,6 @@ if s_state['spec'] is None:
 else:
 
     # Generate the bands
-    # with st.form('load_bands_form', border=True, enter_to_submit=False, clear_on_submit=False):
-
     tab_infer, tab_upload = st.tabs(["Match to observation", "Load from file"])
 
     # Load spectrum
@@ -30,14 +28,13 @@ else:
 
     # Query surveys
     with tab_upload:
-        load_frame_tab('bands_df')
+        load_frame_tab()
 
     # Adjust the bands
     if s_state.bands_df is not None:
 
         st.markdown('')
         st.subheader('Manual adjustment', help=None, divider='gray', width="stretch", text_alignment="left")
-
         st.markdown(f'You can modify the cell values directly in the table below. Additionally, in the "Individual bands" tab,'
                     f' you can interactively adjust the wavelength intervals.')
         bands_review()

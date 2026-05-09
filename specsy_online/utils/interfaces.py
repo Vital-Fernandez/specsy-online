@@ -3,24 +3,23 @@ from os import cpu_count
 from streamlit import session_state as s_state,secrets
 import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
-from numpy import argsort, random
+from numpy import argsort, random, floor, ceil, intersect1d, sum, array, sort, searchsorted, min, max
 from pyneb import RedCorr
 from pandas import DataFrame
+from lime.io import parse_lime_cfg
 from lime.transitions import au, Line
+from lime.retrieve.line_bands import get_spectrum_line_groups
 from specsy import extinction_coeff_calc
-from numpy import floor, ceil, intersect1d, sum, unique, sort, searchsorted
 
 from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
-                                              widget_text_to_list, save_edited_bands, clear_obj_data, widget_save_state, parse_fit_cfg,
-                                              save_objSample)
+                                              widget_text_to_list, on_bands_edit, clear_obj_data, widget_save_state, parse_fit_cfg,
+                                              save_objSample, parse_toml_input, on_toml_change)
 
 from specsy_online.utils.tools import dynamic_input_data_editor
-from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction
+from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction, plot_bokeh_bands
 from lime.archives.read_fits import SPECTRUM_FITS_PARAMS
 from specsy_online.utils.formatting import REGION_TAGS_STYLE, REGION_LABELS, card_formating
-import tomllib
 import tomlkit
-from textwrap import dedent
 
 from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
 
@@ -346,168 +345,247 @@ def select_survey():
     return
 
 
-def parse_toml_input(toml_text):
-    try:
-        st.session_state.bands_cfg = dict(tomlkit.loads(toml_text))
-        st.success("Configuration loaded successfully!")
-    except tomlkit.exceptions.ParseError as e:
-        st.error(f"Invalid TOML syntax: {e}")
-    except Exception as e:
-        st.error(f"Unexpected error parsing configuration: {e}")
-
-def on_toml_change():
-    toml_text = st.session_state[f"toml_input_{st.session_state.toml_area_key}"]
-    if toml_text.strip() == "":
-        st.session_state.bands_cfg = {}
-    else:
-        try:
-            st.session_state.bands_cfg = tomlkit.loads(toml_text).unwrap()
-            st.session_state.toml_text = toml_text
-        except tomlkit.exceptions.ParseError as e:
-            st.error(f"Invalid TOML syntax: {e}")
-        except Exception as e:
-            st.error(f"Unexpected error parsing configuration: {e}")
-
-
 def add_kinematic_components():
+
     selected_lines = st.session_state.selected_lines
     if not selected_lines:
-        st.warning("Please select at least one line.")
+        st.warning("Please select at least one line (ki).")
         return
 
     cfg = st.session_state.bands_cfg
-    section = "default_line_fitting"
+    section = cfg["default_line_fitting"]
 
+    # Add kinematic entries
     for line in selected_lines:
-        cfg[section][f"{line}_b"] = f"{line}+{line}_k-1"
-        cfg[section][f"{line}_k-1_sigma"] = f"expr:>1.0*{line}_sigma"
+        section[f"{line}_b"] = f"{line}+{line}_k-1"
+        section[f"{line}_k-1_sigma"] = f"expr:>1.0*{line}_sigma"
+
+    # Update grouped_lines deduplicating existing entries
+    new_entries = [f"{line}_b" for line in selected_lines]
+    existing = list(section.get("grouped_lines", []))
+    section["grouped_lines"] = list(dict.fromkeys(existing + new_entries))
 
     st.session_state.bands_cfg = cfg
     st.session_state.toml_text = tomlkit.dumps(cfg)
     st.session_state.toml_area_key += 1
 
+
+def add_vsigma_components():
+    selected_lines = st.session_state.vsigma_lines
+    velocity = st.session_state.vsigma_velocity
+
+    if not selected_lines:
+        st.warning("Please select at least one line.")
+        return
+
+    cfg = st.session_state.bands_cfg
+    section = cfg["default_line_fitting"]
+
+    for line in selected_lines:
+        key = tomlkit.items.DottedKey([tomlkit.items.SingleKey("map_band_vsigma"),
+                                       tomlkit.items.SingleKey(line)])
+        section.append(key, velocity)
+
+    st.session_state.bands_cfg = cfg
+    st.session_state.toml_text = tomlkit.dumps(cfg)
+    st.session_state.toml_area_key += 1
+
+
+def prepare_default(wave_rest, bands):
+
+    # Replace this with your actual function call
+    external_cfg = get_spectrum_line_groups(wave_rest, bands)
+
+    if external_cfg is None:
+        st.warning("No configuration returned.")
+        return
+
+    cfg = st.session_state.bands_cfg
+    section = cfg["default_line_fitting"]
+
+    for key, value in external_cfg.items():
+        section[key] = value
+
+    if st.session_state.group_lines_toggle:
+        new_entries = list(external_cfg.keys())
+        existing = list(section.get("grouped_lines", []))
+        section["grouped_lines"] = list(dict.fromkeys(existing + new_entries))
+
+    fix_vsigma_formatting(section)
+
+    st.session_state.bands_cfg = cfg
+    st.session_state.toml_text = tomlkit.dumps(cfg)
+    st.session_state.toml_area_key += 1
+
+
+def fix_vsigma_formatting(section):
+    """Rewrite any map_band_vsigma entries as proper dotted keys."""
+    vsigma_entries = {k: v for k, v in section.items()
+                      if isinstance(k, str) and k.startswith("map_band_vsigma.")}
+
+    # Remove existing vsigma entries
+    for k in vsigma_entries:
+        del section[k]
+
+    # Also remove the nested table version if it exists
+    if "map_band_vsigma" in section:
+        vsigma_dict = section["map_band_vsigma"]
+        for line, value in vsigma_dict.items():
+            vsigma_entries[f"map_band_vsigma.{line}"] = value
+        del section["map_band_vsigma"]
+
+    # Re-add as proper dotted keys
+    for dotted_key, value in vsigma_entries.items():
+        _, line = dotted_key.split(".", 1)
+        key = tomlkit.items.DottedKey([tomlkit.items.SingleKey("map_band_vsigma"),
+                                       tomlkit.items.SingleKey(line)])
+        section.append(key, value)
+
+
+def general_band_settings(def_linelist, default_particle_list, def_df):
+
+    st.markdown(f'##### Transitions')
+
+    # Particle selection
+    st.multiselect(label='Particle selection:', options=default_particle_list, placeholder='All', default=None,
+                   key='ion_list', help='Bands will be limited to these particles. These candidate list was cropped'
+                                        ' to the observation wavelength range')
+
+    # Line selection
+    in_lines = def_linelist if len(s_state['ion_list']) == 0 else def_df.loc[
+        def_df.particle.isin(s_state['ion_list'])].index.sort_values().to_list()
+    st.multiselect(label='Selected lines', options=in_lines, default=None, key='lines_selected', placeholder='All',
+                   label_visibility="visible", help='Select the transitions for the output lines table. By default '
+                                                    'all lines will be considered')
+    # Rejected liens
+    in_lines = def_linelist if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])].index.sort_values().to_list()
+    st.multiselect(label='Rejected lines', options=in_lines, default=None, key='out_lines', placeholder='None',
+                   label_visibility="visible", help='Excludes lines from the output lines table.')
+
+    # Vacuum wavelengths
+    st.toggle("Vacuum wavelengths", value=False, key='vacuum_check', help='Set all transition wavelengths '
+                                                                          'to vacuum values. The default behaviour is transitions 2000Å < λ < 10000Å with air values.')
+
+    st.space('small')
+    st.markdown(f'##### Central bands width')
+
+    # Bands kinematics
+    col1, col2, col3, col4, col5 = st.columns([0.2, 0.25, 0.15, 0.15, 0.3], gap='small')
+
+    # Central bandwidth correction
+    with col1:
+        st.space('xxsmall')
+        st.space('xxsmall')
+        st.toggle(label="Modify central band", value=True, key='adj_central', help='Adjust the central'
+                  'band using the "bands kinematic" width and the  "sigma number"')
+
+    # Band_vsigma
+    with col2:
+        st.space('xxsmall')
+        st.space('xxsmall')
+        st.toggle("Instrumental correction", value=True, key='instr_corr', disabled=not s_state['adj_central'],
+                  help='Use an approximation for the observation resolving power to account for the instrument broadening', )
+
+    # Instrument correction check
+    with col3:
+        st.number_input(label='Velocity width (km/s)', min_value=1, value=70, step=20,
+                                      key='bands_velocity',
+                                      disabled=not s_state['adj_central'], help='This is the bands with in Gaussian '
+                                                                                'standard deviations. The default value is 70 km/s for emission line galaxies.')
+
+    # number of sigmas
+    with col4:
+        msg = 'This is the number of Gaussian sigmas to compute the bands with.'
+        st.number_input('Sigma number', min_value=1, value=4, step=1, key='n_sigma',
+                                      help=msg, disabled=not s_state['adj_central'])
+
+
+    return
+
+
+def fitcfg_band_settings(def_linelist, default_particle_list, def_df, wave_rest):
+
+    # Kinematic components row
+    colA, colB = st.columns([0.5, 0.5])
+    in_lines = def_linelist if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])].index.sort_values().to_list()
+
+    with colA:
+        st.multiselect(label="Select lines", options=in_lines, placeholder="Choose lines to add broad component",
+                       key="selected_lines")
+
+    with colB:
+        st.write("")
+        st.write("")
+        st.button(label="Add kinematic components", on_click=add_kinematic_components, use_container_width=True)
+
+    colC, colD, colE = st.columns([0.4, 0.25, 0.35])
+
+    with colC:
+        st.multiselect(label="Lines velocity width",  options=in_lines, placeholder="Choose lines", default=None,
+                       key="vsigma_lines")
+
+    with colD:
+        st.number_input(label="Velocity (km/s)", min_value=1, value=200, step=20, key="vsigma_velocity")
+
+    with colE:
+        st.write("")
+        st.write("")
+        st.button(label="Add velocity width", on_click=add_vsigma_components, use_container_width=True)
+
+    col_toggle, col_button = st.columns([0.5, 0.5])
+
+    with col_toggle:
+        st.write("")
+        st.write("")
+        st.toggle(label="Add to grouped_lines", value=True, key="group_lines_toggle")
+
+    in_df = def_df if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])]
+    with col_button:
+        st.write("")
+        st.write("")
+        st.button(label="Predict groups", on_click=prepare_default,
+                  args=(wave_rest, in_df), use_container_width=True)
+
+    st.markdown(f'##### Fitting configuration')
+    st.text_area(label="Bands configuration",
+                 value=st.session_state.toml_text,
+                 height=300,
+                 help="Enter your bands configuration in TOML format",
+                 key=f"toml_input_{st.session_state.toml_area_key}",
+                 on_change=on_toml_change)
+
+    st.toggle("Automatic grouping", value=False, key='auto_group', help='Autmatic selection of the group selected by the user')
+
+    return
+
+
 def compute_bands():
 
     # Initial configuration values
     if "bands_cfg" not in st.session_state:
-        st.session_state.bands_cfg = {
-            "default_line_fitting": {
-                "O2_3726A_m": "O2_3726A+O2_3729A",
-                "O2_7325A_b": "O2_7319A_m+O2_7330A_m",
-                "O2_7325A_m": "O2_7319A_m+O2_7330A_m",
-                "O2_7319A_m": "O2_7319A+O2_7320A",}}
-
-    if "toml_area_key" not in st.session_state:
-        st.session_state.toml_area_key = 0
+        default = {"default_line_fitting": {}}
+        st.session_state.bands_cfg = tomlkit.loads(tomlkit.dumps(default))
 
     if "toml_text" not in st.session_state:
         st.session_state.toml_text = tomlkit.dumps(st.session_state.bands_cfg)
 
-    # Input spectra definition
-    col_parameters_1, col_parameters_2 = st.columns([0.60, 0.40], gap='large')
+    if "toml_area_key" not in st.session_state:
+        st.session_state.toml_area_key = 0
 
+    # Input spectra definition
     spec = s_state['spec']
     def_df = spec.retrieve.lines_frame()
     def_linelist = def_df.index.sort_values().to_list()
     default_particle_list = list(def_df.particle.sort_values().unique())
 
-    with col_parameters_1:
+    # General settings versus config settings
+    general_band_col, fitcfg_band_col = st.columns([0.60, 0.40], gap='large')
 
-        st.markdown(f'##### Transitions')
+    with general_band_col:
+        general_band_settings(def_linelist, default_particle_list, def_df)
 
-        # Particle selection
-        help_message = 'Bands will be limited to these particles. These candidate list was cropped to the observation wavelength range'
-        part_list = st.multiselect('Particle selection:', options=default_particle_list, placeholder='All', default=None,
-                                        key='particle_bands_list', help=help_message)
-
-        # Line selection
-        help_message = 'Select the transitions for the output lines table. By default all lines will be considered'
-
-        in_lines = def_linelist if len(part_list) == 0 else def_df.loc[def_df.particle.isin(part_list)].index.sort_values().to_list()
-        line_selection = st.multiselect(label='Selected lines', options=in_lines, default=None,
-                                        key='lines_band_list', help=help_message, placeholder='All',
-                                        label_visibility="visible")
-
-
-        help_message = 'Excludes lines from the output lines table.'
-        in_lines = def_linelist if len(part_list) == 0 else def_df.loc[def_df.particle.isin(part_list)].index.sort_values().to_list()
-        rejected_lines = st.multiselect(label='Rejected lines', options=in_lines, default=None,
-                                        key='rejected_band_list', help=help_message, placeholder='None',
-                                        label_visibility="visible")
-
-        # All wavelengths are in vacuum
-        st.markdown("")
-        help_message = 'Set all transition wavelengths to vacuum values. The default behaviour is transitions 2000Å < λ < 10000Å with air values.'
-        vacuum_check = st.toggle("Vacuum wavelengths", value=False, key='vacuum_check', help=help_message)
-
-        st.space('small')
-        st.markdown(f'##### Central bands width')
-
-        # Bands kinematics
-        col1, col2, col3, col4, col5= st.columns([0.2, 0.25, 0.15, 0.15, 0.3], gap='small')
-
-        # Central bandwidth correction
-        with col1:
-            st.space('xxsmall')
-            st.space('xxsmall')
-            message_help='Adjust the central line band using the "bands kinematic" width and the "sigma number"'
-            adjust_central_bands = st.toggle("Adjust bands width", value=True, key='adjust_central_bands', help=message_help)
-
-        # Band_vsigma
-        with col2:
-            st.space('xxsmall')
-            st.space('xxsmall')
-            message_help = 'Use an approximation for the observation resolving power to account for the instrument broadening'
-            instr_corr_check = st.toggle("Instrumental correction", value=True, key='instr_corr_check', help=message_help,
-                                         disabled=not adjust_central_bands)
-
-        # Instrument correction check
-        with col3:
-            msg = 'This is the bands with in Gaussian standard deviations. The default value is 70 km/s for emission line galaxies.'
-            v_bands_str = st.number_input('Velocity width (km/s)', min_value=1, value=70, step=20, key='bands_velocity',
-                                          help=msg, disabled=not adjust_central_bands)
-
-        # number of sigmas
-        with col4:
-            msg='This is the number of Gaussian sigmas to compute the bands with.'
-            n_sigma_str = st.number_input('Sigma number', min_value=1, value=4, step=1, key='n_sigma_str',
-                                          help=msg, disabled=not adjust_central_bands)
-
-
-    with col_parameters_2:
-
-        # Kinematic components row
-        colA, colB = st.columns([0.5, 0.5])
-        LINES = ["O3_5007A", "O3_4959A", "H1_4861A", "H1_6563A"]
-
-        with colA:
-            st.multiselect(
-                label="Select lines",
-                options=LINES,
-                placeholder="Choose lines to add kinematic components",
-                key="selected_lines",
-            )
-
-        with colB:
-            st.write("")
-            st.write("")
-            st.button(
-                label="Add kinematic components",
-                on_click=add_kinematic_components,
-                use_container_width=True,
-            )
-
-        st.markdown(f'##### Fitting configuration')
-        st.text_area(
-                    label="Bands configuration",
-                    value=st.session_state.toml_text,
-                    height=300,
-                    help="Enter your bands configuration in TOML format",
-                    key=f"toml_input_{st.session_state.toml_area_key}",
-                    on_change=on_toml_change,
-                )
-
-    st.json(st.session_state.bands_cfg)
+    with fitcfg_band_col:
+        fitcfg_band_settings(def_linelist, default_particle_list, def_df, spec.wave_rest.data)
 
     # Generate the bands
     st.space('small')
@@ -519,41 +597,59 @@ def compute_bands():
         if s_state['bands_df'] is not None:
             save_state('bands_df', None)
 
+        # ReInitialize counter for he bands editor
+        if 'bands_editor_version' not in st.session_state:
+            st.session_state['bands_editor_version'] = 0
+        else:
+            st.session_state['bands_editor_version'] += 1
+
         # Generate bands
         spec = s_state['spec']
-        bands = spec.retrieve.lines_frame(line_list=None if len(line_selection) == 0 else line_selection,
-                                          particle_list=None if len(part_list) == 0 else part_list,
-                                          vacuum_waves=vacuum_check,
-                                          automatic_grouping=False,
-                                          rejected_lines=rejected_lines,
-                                          adjust_central_band=adjust_central_bands,
-                                          band_vsigma=None if v_bands_str is None else float(v_bands_str),
-                                          n_sigma=None if n_sigma_str is None else float(n_sigma_str),
-                                          instrumental_correction=instr_corr_check,
-                                          update_latex=False)
-        save_state('bands_df', bands)
+        input_cfg =parse_lime_cfg(tomlkit.loads(st.session_state.toml_text).unwrap())
+
+        if input_cfg is not None:
+            st.write(s_state['auto_group'])
+            bands = spec.retrieve.lines_frame(line_list=s_state['lines_selected'] or None,
+                                              particle_list=s_state['ion_list'] or None,
+                                              vacuum_waves=s_state['vacuum_check'],
+                                              fit_cfg=input_cfg,
+                                              automatic_grouping=s_state['auto_group'],
+                                              rejected_lines=s_state['out_lines'] or None,
+                                              adjust_central_band=s_state['adj_central'],
+                                              band_vsigma=s_state['bands_velocity'],
+                                              n_sigma=s_state['n_sigma'],
+                                              instrumental_correction=s_state['instr_corr'],
+                                              update_latex=False)
+            save_state('bands_df', bands)
 
     return
 
 
-def load_frame_tab(frame_key):
+def load_frame_tab():
 
     st.markdown(f'### Frame file address')
+    uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
 
-    try:
+    # if st.form_submit_button("Upload lines frame"):
+    if st.button("Upload lines frame"):
 
-        # Get the file
-        uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
+        # Load the measurements after clearing the old ones
+        try:
+            s_state['lines_df'] = None
+            if s_state.get('spec') is not None:
+                s_state['spec'].clear_data()
+            save_state(param='lines_df', value=parse_line_bands_df(uploaded_file))
+        except Exception as e:
+            st.error(f"An error occurred loading the line measurements frame:\n{e}")
 
-        # Every form must have a submit button.
-        submitted = st.button("Upload frame")
-
-        # Load the dataframe
-        if submitted:
-            save_state(frame_key, parse_line_bands_df(uploaded_file))
-
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+        # Assign the line measurements to the spectrum if available
+        if s_state.get('spec') is not None:
+            try:
+                spec = s_state['spec']
+                spec.load_frame(s_state['lines_df'])
+                save_state(param='spec', value=spec)
+            except Exception as e:
+                st.warning(f"An error occurred trying to assign the uploaded lines measurements to the current observation:\n{e}")
 
     return
 
@@ -566,8 +662,11 @@ def declare_line_measuring():
     with tab_fit:
 
         st.markdown(f'### Write the fitting configuration:')
-        st.text_area('Please follow .toml style', key='fit_cfg', height=300, placeholder=FIT_CFG_PLACEHOLDER,
-                     on_change=widget_save_state, help=FIT_CFG_HELP, args=("fit_cfg",))
+        # st.text_area('Please follow .toml style', key='fit_cfg', height=300, placeholder=FIT_CFG_PLACEHOLDER,
+        #              on_change=widget_save_state, help=FIT_CFG_HELP, args=("fit_cfg",))
+
+        st.text_area(label="Bands configuration", value=st.session_state.toml_text, height=300,
+                     help=FIT_CFG_HELP, key=f"toml_input_{st.session_state.toml_area_key}", on_change=on_toml_change)
 
         if s_state['spec'] is not None:
 
@@ -607,7 +706,6 @@ def declare_line_measuring():
     with tab_upload:
         with st.form('load_lines_form', border=False, enter_to_submit=False, clear_on_submit=False):
             load_frame_tab('lines_df')
-
             if s_state.lines_df is not None:
                 st.success('Successful upload')
                 st.dataframe(s_state.lines_df)
@@ -713,83 +811,91 @@ def review_bounds():
     return
 
 
+def band_sliders(selected, wave_rest, wbands, idx_min, idx_max):
+    labels = [("Left continuum", "w1 / w2"), ("Line region", "w3 / w4"), ("Right continuum", "w5 / w6")]
+    keys = ["left", "center", "right"]
+    idxs = searchsorted(wave_rest, wbands).tolist()
+
+    new_idxs = []
+    for col, (title, label), key, (i, j) in zip(st.columns(3), labels, keys, zip(idxs[::2], idxs[1::2])):
+        with col:
+            st.markdown(f"**{title}**")
+            s1, s2 = st.slider(label, min_value=idx_min, max_value=idx_max,
+                               value=(int(i), int(j)), key=f"slider_{key}_{selected}")
+            new_idxs.extend([s1, s2])
+
+    return new_idxs
+
+
+def tab_single_editor(edited_df, spec):
+
+    if edited_df is not None and not edited_df.empty:
+        selected = st.selectbox("Select band", options=edited_df.index)
+
+        wave_rest = spec.wave_rest.data
+        wbands = edited_df.loc[selected, ['w1', 'w2', 'w3', 'w4', 'w5', 'w6']].to_numpy()
+        idx1, idx2, idx3, idx4, idx5, idx6 = searchsorted(wave_rest, wbands)
+        idx_min = int(max((0, idx1 - 10)))
+        idx_max = int(min((idx6 + 10, wave_rest.size - 1)))
+
+
+        col_title, col_log, _ = st.columns([0.3, 0.3, 0.3])
+
+        with col_title:
+            st.markdown("##### Band edges (pixel index)")
+        with col_log:
+            log_check = st.toggle(label="Logarithmic scale", value=False, key='log_band_check')
+
+
+        col_left, col_center, col_right = st.columns(3)
+
+        with col_left:
+            st.markdown("**Left continuum**")
+            s1, s2 = st.slider("w1 / w2", min_value=idx_min, max_value=idx_max,
+                               value=(int(idx1), int(idx2)), key=f"slider_left_{selected}")
+        with col_center:
+            st.markdown("**Line region**")
+            s3, s4 = st.slider("w3 / w4", min_value=idx_min, max_value=idx_max,
+                               value=(int(idx3), int(idx4)), key=f"slider_center_{selected}")
+        with col_right:
+            st.markdown("**Right continuum**")
+            s5, s6 = st.slider("w5 / w6", min_value=idx_min, max_value=idx_max,
+                               value=(int(idx5), int(idx6)), key=f"slider_right_{selected}")
+
+        limits_new = array([wave_rest[s1], wave_rest[s2], wave_rest[s3],
+                            wave_rest[s4], wave_rest[s5], wave_rest[s6]])
+
+        if any(limits_new != wbands):
+            edited_df.at[selected, 'w1'] = wave_rest[s1]
+            edited_df.at[selected, 'w2'] = wave_rest[s2]
+            edited_df.at[selected, 'w3'] = wave_rest[s3]
+            edited_df.at[selected, 'w4'] = wave_rest[s4]
+            edited_df.at[selected, 'w5'] = wave_rest[s5]
+            edited_df.at[selected, 'w6'] = wave_rest[s6]
+            save_state('bands_df', edited_df)
+            st.rerun()
+
+        # Plot the selection
+        plot_bokeh_bands(wave_rest[idx_min:idx_max], spec.flux.data[idx_min:idx_max], selected, limits_new, log_check)
+
+    return edited_df
+
+
 def bands_review():
 
     spec = st.session_state.spec
 
-    # Select the generate the bands to edit
-    if st.session_state['in_bands'] is None:
-        if st.session_state['bands_df'] is not None:
-            in_bands = st.session_state.bands_df.copy()
-        else:
-            in_bands = spec.retrieve.line_bands(particle_list=['O3', 'O2'])
-
-        # Reset the index to avoid conflict issues and store in session state
-        in_bands.index.name = "label"
-        st.session_state.in_bands = in_bands.reset_index()
+    edited_df = st.data_editor(st.session_state['bands_df'], num_rows='delete',
+                               key=f"bands_editor_{st.session_state['bands_editor_version']}")
 
     # Tabs showing the full spectrum
     tabs_all, tab_single = st.tabs(['Full spectrum', 'Individual bands'])
+
     with tabs_all:
+        bokeh_spectrum('spec', edited_df)
 
-        # Editable bands widget
-        output_bands = dynamic_input_data_editor(st.session_state.in_bands, key="my_editor")
-
-        # Display the bands
-        st.space('medium')
-        bands_plot = output_bands.set_index('label') if isinstance(output_bands.index[0], int) else output_bands
-        bokeh_spectrum('spec', bands_plot)
-
-    # with tab_single:
-    #
-    #     colLabel, colWidth, colCont = st.columns(3, gap="large", vertical_alignment="center")
-    #     with colLabel:
-    #
-    #         if 'line_selected' not in s_state:
-    #             s_state['line_selected'] = output_bands.label.to_numpy()[0]
-    #             start_bounds(spec, output_bands)
-    #             st.info(output_bands.label.to_numpy()[0])
-    #
-    #         label_selected = st.selectbox('Line', output_bands.label.to_numpy(), index=0, key='line_selected',
-    #                                       on_change=start_bounds, args=(spec, output_bands, ))
-    #
-    #     with colWidth:
-    #         message_help = 'The maximum number of band pixels. Increase this number to extend the range of the bands'
-    #         n_pixels = st.number_input('Band max pixels number', min_value=5, max_value=150, value=30, step=1,
-    #                                    help=message_help)
-    #
-    #     with colCont:
-    #         st.write("")
-    #         st.write("")
-    #         message_help = 'The manual selection excludes the line bands'
-    #         exclude_cont_check = st.toggle("Exclude continua", value=True, key='toggle_exclude_continua', help=message_help)
-    #
-    #     # Display sliders
-    #     colBlue, colCentral, colRed = st.columns(3, gap="large", vertical_alignment="center")
-    #     st.write(n_pixels)
-    #     with colCentral:
-    #         st.slider("Central band idcs", min_value=-n_pixels, max_value=n_pixels, key="central", on_change=review_bounds)
-    #
-    #     with colBlue:
-    #         st.slider("Lower band idcs", min_value=-n_pixels, max_value=0, key="lower", on_change=review_bounds, disabled=exclude_cont_check)
-    #
-    #     with colRed:
-    #         st.slider("Upper band idcs", min_value=0, max_value=n_pixels, key="upper", on_change=review_bounds, disabled=exclude_cont_check)
-    #
-    #     # Save the bands
-    #     idcs_array = array([s_state.lower[0], s_state.lower[1],
-    #                        s_state.central[0], s_state.central[1],
-    #                        s_state.upper[0], s_state.upper[1]]) + s_state.idx_central
-    #     bands_arr = spec.wave_rest.data[idcs_array.astype(int)]
-    #
-    #     # bokeh_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
-    #     matplotlib_bands('spec', label_selected, bands=bands_arr, exclude_continua=exclude_cont_check)
-    #
-    #     if s_state.idx_label in output_bands.index:
-    #         output_bands.loc[s_state.idx_label, 'w1':'w6'] = bands_arr
-
-    # Save modifications
-    save_edited_bands(output_bands, 'bands_df')
+    with tab_single:
+        tab_single_editor(edited_df, spec)
 
     return
 
@@ -936,9 +1042,22 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
     # Formating for the labels
     st.markdown(REGION_TAGS_STYLE, unsafe_allow_html=True)
 
+    col_reg, col_norm, col_kinem, _ = st.columns([0.25, 0.25, 0.25, 0.25])
+
     # Number of regions selectbox
-    n_regions = st.selectbox(label="Number of regions", options=[1, 2, 3, 4], key="n_regions",
-                             help="Changing the number of regions clears all widget state.")
+    with col_reg:
+        n_regions = st.selectbox(label="Number of regions", options=[1, 2, 3, 4], key="n_regions",
+                                 help="Changing the number of regions clears all widget state.")
+    with col_norm:
+        st.space('xxsmall')
+        st.space('xxsmall')
+        norm_check = st.toggle(label="Normalize fluxes", value=True, key="norm_check",
+                               help="Divide the fluxes by H1_4861A")
+
+        # norm_line = st.selectbox(label="Normalization line", options=['H1_4861A'], key="norm_line_specsy",
+        #                          help="Normalization label.")
+    with col_kinem:
+        st.selectbox(label="Kinematic component", options=[0], key="kinem_order_specsy", help="Normalization label.")
 
     # ── Session-state reset when n_regions changes ────────────────────────────────
     _sentinel_key = f"__sentinel_{n_regions}__"
@@ -999,28 +1118,13 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
 
             st.markdown("</div>", unsafe_allow_html=True)
 
-    # # Create a dictionary with the parameters
-    # struct_dict = {}
-    # for idx, label in enumerate(REGION_LABELS[st.session_state['n_regions']]):
-    #     struct_dict[f'r{idx}'] = {"name": st.session_state.get(f"region_{label}_particles"),
-    #                           "species": st.session_state.get(f"region_{region_name}_particles", []),
-    #                           "temp_mode": st.session_state.get(f"region_{label}_temp_mode"),
-    #                           "den_mode": st.session_state.get(f"region_{label}_den_mode"),
-    #                           "temp_tied_to": st.session_state.get(f"region_{label}_temp_tied_to"),
-    #                           "den_tied_to": st.session_state.get(f"region_{label}_den_tied_to"),
-    #                           "temp_eq": st.session_state.get(f"region_{label}_temp_relation"),
-    #                           "den_eq": st.session_state.get(f"region_{label}_den_relation"),
-    #                           }
-    #
-    # st.session_state['struct_dict'] = struct_dict
-
     return
 
 def sampler_cfg_widget():
 
-    cores_max = cpu_count()
-    cores_recomended = max(1, cores_max - 4)
-
+    cores_max = cpu_count() or 1
+    cores_recommended = max((1, cores_max - 4))
+    st.write(cores_max, cores_recommended)
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
@@ -1031,14 +1135,14 @@ def sampler_cfg_widget():
 
     with col3:
         st.number_input(f"Chains (max = {cores_max})", min_value=1, max_value=cores_max,
-                                 value=cores_recomended, step=1, key='chains_pymc')
+                                 value=cores_recommended, step=1, key='chains_pymc')
 
     with col4:
         st.number_input(f"Cores (max = {cores_max})", min_value=1, max_value=cores_max,
-                                value=cores_recomended, step=1, key='cores_pymc')
+                                value=cores_recommended, step=1, key='cores_pymc')
 
     with col5:
-        st.selectbox("NUTS sampler", options=["numpyro", "pymc", "blackjax"], key='sampler_pymc')
+        st.selectbox("NUTS sampler", options=["numpyro", "nutpie", "pymc", "blackjax"], key='sampler_pymc')
 
 
     return
@@ -1049,7 +1153,7 @@ def make_sampling_callback():
     total_steps = s_state['draws_pymc'] * s_state['chains_pymc']  # callback only fires on draws, not tune
     chain_draws = {i: 0 for i in range(s_state['chains_pymc'])}
 
-    progress_bar = st.progress(0, text="Sampling...")
+    progress_bar = st.progress(0, text=f"Sampling for {s_state['chains_pymc'] * s_state['draws_pymc']} steps...")
 
     def sampling_callback(trace, draw):
         if not draw.tuning:
@@ -1060,9 +1164,10 @@ def make_sampling_callback():
                                   text=f"Chain {draw.chain + 1}/{s_state['chains_pymc']} | draw {chain_draws[draw.chain]}/{s_state['draws_pymc']}")
 
     s_state['nebula'].infer.direct_method.run(draws=s_state['draws_pymc'], tune=s_state['tune_pymc'],
-                                             target_accept=0.9, chains=s_state['chains_pymc'],
+                                             target_accept=0.8, chains=s_state['chains_pymc'],
                                              cores=s_state['cores_pymc'], callback=sampling_callback,
                                              nuts_sampler=s_state['sampler_pymc'])
+
 
     progress_bar.progress(1.0, text="Sampling complete!")
 
@@ -1071,3 +1176,121 @@ def make_sampling_callback():
     return
 
 
+DISTRIBUTION_OPTIONS = ["Normal", "HalfNormal", "HalfCauchy", "Lognormal", "Uniform"]
+PRIOR_COLUMNS = ["distribution", "center", "sigma", "factor", "shift"]
+REGION_KEYS = ["low", "med", "high", "vhigh"]
+
+
+def prior_configuration_widget(default_priors: dict, regions: list) -> dict:
+    """
+    Streamlit widget for configuring model priors.
+
+    Parameters
+    ----------
+    default_priors : dict
+        Default prior configuration mimicking the toml structure.
+    regions : list
+        List of region names to display temp/den priors for e.g. ["low", "high"]
+
+    Returns
+    -------
+    dict
+        Updated prior configuration in the same format as the input toml.
+    """
+
+    st.header("Prior Configuration")
+    output = {}
+
+    # --- helper to render one prior row ---
+    def render_prior_row(key, defaults):
+        dist, center, sigma, factor, shift = defaults
+        cols = st.columns([2, 2, 2, 2, 2, 2])
+
+        # small vertical space to align label with widgets
+        cols[0].space(20)
+        cols[0].markdown(f"**{key}**")
+
+        new_dist = cols[1].selectbox(
+            "Distribution", DISTRIBUTION_OPTIONS,
+            index=DISTRIBUTION_OPTIONS.index(dist),
+            key=f"{key}_dist"
+        )
+
+        # adapt parameter names and behavior based on distribution
+        if new_dist == "Uniform":
+            new_center = cols[2].number_input(
+                "Lower limit", value=float(center),
+                key=f"{key}_center"
+            )
+            new_sigma = cols[3].number_input(
+                "Upper limit", value=float(sigma),
+                key=f"{key}_sigma"
+            )
+
+        elif new_dist.startswith("Half"):
+            # mean is always zero for half distributions, disabled
+            new_center = cols[2].number_input(
+                "Center", value=0.0,
+                disabled=True,
+                key=f"{key}_center"
+            )
+            new_sigma = cols[3].number_input(
+                "Sigma", value=float(sigma), min_value=0.0,
+                key=f"{key}_sigma"
+            )
+
+        else:
+            new_center = cols[2].number_input(
+                "Center", value=float(center),
+                key=f"{key}_center"
+            )
+            new_sigma = cols[3].number_input(
+                "Sigma", value=float(sigma), min_value=0.0,
+                key=f"{key}_sigma"
+            )
+
+        new_factor = cols[4].number_input(
+            "Factor", value=float(factor),
+            key=f"{key}_factor"
+        )
+        new_shift = cols[5].number_input(
+            "Shift", value=float(shift),
+            key=f"{key}_shift"
+        )
+
+        return [new_dist, new_center, new_sigma, new_factor, new_shift]
+
+    # --- temperatures ---
+    st.subheader("Temperatures")
+    header_cols = st.columns([2, 2, 2, 2, 2, 2])
+    for col, label in zip(header_cols[1:], PRIOR_COLUMNS):
+        col.markdown(f"*{label}*")
+
+    for region in regions:
+        key = f"temp_{region}"
+        if key in default_priors:
+            output[key] = render_prior_row(key, default_priors[key])
+
+    # --- densities ---
+    st.subheader("Densities")
+    header_cols = st.columns([2, 2, 2, 2, 2, 2])
+    for col, label in zip(header_cols[1:], PRIOR_COLUMNS):
+        col.markdown(f"*{label}*")
+
+    for region in regions:
+        key = f"den_{region}"
+        if key in default_priors:
+            output[key] = render_prior_row(key, default_priors[key])
+
+    # --- other priors (everything except temp/den) ---
+    st.subheader("Other Priors")
+    header_cols = st.columns([2, 2, 2, 2, 2, 2])
+    for col, label in zip(header_cols[1:], PRIOR_COLUMNS):
+        col.markdown(f"*{label}*")
+
+    skip_keys = {f"temp_{r}" for r in REGION_KEYS} | {f"den_{r}" for r in REGION_KEYS}
+    for key, defaults in default_priors.items():
+        if key not in skip_keys:
+            output[key] = render_prior_row(key, defaults)
+
+    return output

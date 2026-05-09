@@ -10,7 +10,6 @@ from toml import loads
 from pandas import DataFrame, isnull
 from lime import load_frame, Spectrum
 from lime.io import parse_lime_cfg
-from specsy import load_frame as load_frame_sy
 from innate import DataSet, load_dataset
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -20,6 +19,8 @@ from numpy import array
 from typing import Union, List, Dict
 import base64
 import json
+import tomlkit
+
 
 # Current path
 LOCAL_FOLDER = Path(__file__).parent
@@ -69,6 +70,13 @@ def set_defaults():
             s_state[f'{item}_hold'] = value
         s_state[item] = s_state[f'{item}_hold']
 
+    return
+
+
+def on_bands_edit():
+    s_state['bands_df'] = st.session_state['edited_df']
+    s_state[f'bands_df_hold'] = s_state['bands_df']
+    st.success(f'Input change: {s_state['bands_df'].index.size}')
     return
 
 
@@ -155,6 +163,33 @@ def get_user_parameters(username: str, params: Union[str, List[str]]) -> Union[N
     else:
         return {param: user_data.get(param) for param in params}
 
+
+def parse_toml_input(toml_text):
+    try:
+        st.session_state.bands_cfg = dict(tomlkit.loads(toml_text))
+        st.success("Configuration loaded successfully!")
+    except tomlkit.exceptions.ParseError as e:
+        st.error(f"Invalid TOML syntax: {e}")
+    except Exception as e:
+        st.error(f"Unexpected error parsing configuration: {e}")
+
+
+def on_toml_change():
+    toml_text = st.session_state[f"toml_input_{st.session_state.toml_area_key}"]
+    if toml_text.strip() == "":
+        st.session_state.bands_cfg = tomlkit.loads("[default_line_fitting]\n")
+        st.session_state.toml_text = "[default_line_fitting]\n"
+    else:
+        try:
+            cfg = tomlkit.loads(toml_text)
+            if "default_line_fitting" not in cfg:
+                cfg.add("default_line_fitting", tomlkit.table())
+            st.session_state.bands_cfg = cfg
+            st.session_state.toml_text = tomlkit.dumps(cfg)
+        except tomlkit.exceptions.ParseError as e:
+            st.error(f"Invalid TOML syntax: {e}")
+        except Exception as e:
+            st.error(f"Unexpected error parsing configuration: {e}")
 
 @st.cache_resource
 def read_collaboration_file_log(collaboration_name, idx_list):
@@ -498,9 +533,9 @@ def download_component(filename, df):
     components.html(download_button(filename, df), height=0)
 
 
-def download_frame_form(fname, variable, button_label='Download'):
+def download_frame_form(fname, variable, button_label='Download', key_widget="Frame_download_form"):
 
-    with st.form("Frame_download_form", border=False):
+    with st.form(key_widget, border=False):
         st.form_submit_button(button_label, on_click=download_component, args=(fname, variable))
 
     return

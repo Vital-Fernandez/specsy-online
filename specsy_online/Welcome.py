@@ -62,4 +62,13 @@ if __name__ == "__main__":
 #
 # pip install st-gsheets-connection
 #
+
+# '''
+# conda install -c conda-forge nutpie pymc numba numpyro blackjax
+#
+# pip install corner tomlkit fastprogress scikit-learn joblib lmfit pyneb bokeh streamlit streamlit-bokeh streamlit-authenticator st-gsheets-connection google-api-python-client
+#
+# '''
+#
+
 # '''

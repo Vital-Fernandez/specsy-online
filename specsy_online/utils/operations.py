@@ -28,6 +28,8 @@ def compute_redshift(spec):
 def structure_manager(region_label):
 
     struct_dict = {'region': {}}
+    st_warnings = []
+
     for idx, label in enumerate(region_label[st.session_state['n_regions']]):
         struct_dict['region'][f'r{idx}'] = {"name": label,
                                             "temp_mode": sstate.get(f"region_{label}_temp_mode"),
@@ -41,15 +43,18 @@ def structure_manager(region_label):
             struct_dict['region'][f'r{idx}']['species'] = sstate.get(f"region_{label}_particles")
         else:
             struct_dict['region'][f'r{idx}']['species'] = None
+            st_warnings.append(f"No species declared in region {label}")
+
+        if len(sstate.get(f"region_{label}_exclude", [])) > 0:
+            struct_dict[f"region_{label}_exclude"] = sstate.get(f"region_{label}_exclude")
 
         if struct_dict['region'][f'r{idx}']['temp_eq'] is 'None':
             struct_dict['region'][f'r{idx}']['temp_eq'] = None
+
         if struct_dict['region'][f'r{idx}']['den_eq'] is 'None':
             struct_dict['region'][f'r{idx}']['den_eq'] = None
 
     sstate['structure_dict'] = struct_dict
+    st_warnings = None if len(st_warnings) == 0 else st_warnings
 
-    return
-
-# def parce_direct_method(_emiss_grids, R_v, extinction_law, temp_low_diag):
-#     return DirectMethod(emiss_grids=_emiss_grids, R_v=R_v, extinction_law=extinction_law, temp_low_diag=temp_low_diag)
+    return st_warnings
