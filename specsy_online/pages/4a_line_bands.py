@@ -2,15 +2,15 @@ import streamlit as st
 from streamlit import session_state as s_state
 from specsy_online.utils.sidebar import sidebar_widgets
 from specsy_online.utils.interfaces import bands_review, compute_bands, load_frame_tab
-from specsy_online.utils.input_output import download_frame_form
-from lime import Spectrum
+from specsy_online.utils.formatting import CODE_LINES_FRAME_BASIC, CODE_LINES_FRAME_FILTERED, CODE_LINES_FRAME_ADVANCED
 # Run the sidebar
 sidebar_widgets()
 
 # Page structure
-st.markdown(f'# Line bands')
-st.markdown(f'Using the menu below you can generate a table with bands for your observation or upload one'
-            f'computer. The current lines database can be found at this [link](https://docs.google.com/spreadsheets/d/10S_2iW7ygyM9_aMPtHAsIPIISwv72SwPFiSSKcV-n7s/edit?usp=sharing).')
+st.markdown(f'# Line bands preparation')
+st.markdown("Use the widgets below to build a line bands table for your observation, or upload an existing one. "
+            "Please check the documentation for more details on the [line bands model](https://lime-stable.readthedocs.io/en/latest/1_introduction/3_line_bands.html) "
+            "and how to adjust the [default lines database](https://lime-stable.readthedocs.io/en/latest/1_introduction/4_lines_database.html).")
 
 # Check file has been uploaded
 if s_state['spec'] is None:
@@ -19,27 +19,34 @@ if s_state['spec'] is None:
 # Use the observation to create reference bands
 else:
 
-    # Generate the bands
-    tab_infer, tab_upload = st.tabs(["Match to observation", "Load from file"])
-
-    # Load spectrum
-    with tab_infer:
-        compute_bands()
-
-    # Query surveys
-    with tab_upload:
-        load_frame_tab()
+    # Compute bands
+    st.space('small')
+    st.subheader('Template', help=None, divider='gray', width="stretch", text_alignment="left")
+    compute_bands()
 
     # Adjust the bands
     if s_state.bands_df is not None:
 
-        st.markdown('')
-        st.subheader('Manual adjustment', help=None, divider='gray', width="stretch", text_alignment="left")
+        st.space('small')
+        st.subheader('Editor', help=None, divider='gray', width="stretch", text_alignment="left")
         st.markdown(f'You can modify the cell values directly in the table below. Additionally, in the "Individual bands" tab,'
                     f' you can interactively adjust the wavelength intervals.')
         bands_review()
 
         # Download the bands to a file
-        st.subheader('Download', help=None, divider='gray', width="stretch", text_alignment="left")
-        st.markdown(f'Save bands selection to a text file.')
-        download_frame_form(f'{s_state["id"]}_bands_df.txt', s_state.bands_df)
+        if s_state.get('id') is not None:
+            table_name = s_state['id'].replace('.fits', "") + f'_line_bands.txt'
+        else:
+            table_name  = 'line_bands.txt'
+        st.download_button(label='Download line bands to a .txt file', file_name=table_name,
+                           data=s_state.bands_df.to_string().encode('UTF-8'))
+
+# Code example
+st.write('***')
+with st.expander("Code examples", icon=":material/laptop_windows:"):
+    st.caption("Get all lines in range")
+    st.code(CODE_LINES_FRAME_BASIC, language="python")
+    st.caption("Filter by particle and velocity")
+    st.code(CODE_LINES_FRAME_FILTERED, language="python")
+    st.caption("Per-line band customization")
+    st.code(CODE_LINES_FRAME_ADVANCED, language="python")

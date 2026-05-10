@@ -1,20 +1,26 @@
 import streamlit as st
-from streamlit import session_state as s_state, secrets
 import streamlit_authenticator as stauth
-from streamlit_gsheets import GSheetsConnection
 import streamlit.components.v1 as components
 
+from streamlit import session_state as s_state, secrets
+from streamlit_gsheets import GSheetsConnection
+
+
+from os import cpu_count
 from pathlib import Path
+from contextlib import redirect_stdout
+from importlib import metadata
 from PIL import Image
 from toml import loads
 from pandas import DataFrame, isnull
-from lime import load_frame, Spectrum
+from arviz import from_netcdf
+from lime import load_frame, Spectrum, show_instrument_cfg, show_profile_parameters
 from lime.io import parse_lime_cfg
 from innate import DataSet, load_dataset
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from io import BytesIO
+from io import BytesIO, StringIO
 from numpy import array
 from typing import Union, List, Dict
 import base64
@@ -61,7 +67,17 @@ DEFAULT_STATES = {'spec': None,
                   # "sample_list": ['CAPERS-COSMOS_DR0.4', 'CAPERS-UDS_DR0.4', 'CAPERS-EGS_DR0.4'],
                   }
 
-
+PACKAGES_dependencies = {
+                        "LiMe": "lime-stable",
+                        "Aspect": "aspect-stable",
+                        "SpecSy": "specsy",
+                        "SpecSy Online": "specsy_online",
+                        "NumPy": "numpy",
+                        "Astropy": "astropy",
+                        "PyMC": "pymc",
+                        "ArviZ": "arviz",
+                        "Pandas": "pandas",
+                        }
 
 def set_defaults():
 
@@ -224,8 +240,56 @@ def load_logo(file_address=LOGO_PATH):
 
 
 @st.cache_data
-def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=None, units_flux_in=None, id_label=None,
-                  delimiter=None, comments='#', skiprows=1, usecols=None, wave_units_out=None, flux_units_out=None):
+def get_versions(packages: dict[str, str] | None = None) -> dict[str, str]:
+    if packages is None:
+        packages = PACKAGES_dependencies
+    return {
+        label: metadata.version(pkg)
+        for label, pkg in packages.items()
+    }
+
+@st.cache_data
+def get_sampler_backends() -> dict[str, str | None]:
+    backends = ["nutpie", "pymc", "numba", "numpyro", "blackjax"]
+    return {
+        pkg: metadata.version(pkg)
+        if metadata.packages_distributions().get(pkg)
+        else None
+        for pkg in backends
+    }
+
+
+@st.cache_data
+def get_device_info() -> dict:
+    info = {"cpu_cores": cpu_count()}
+
+    try:
+        import jax
+        info["jax_backend"] = jax.default_backend()
+        info["jax_devices"] = [str(d) for d in jax.devices()]
+    except Exception:
+        info["jax_backend"] = None
+
+    try:
+        import pytensor
+        info["pytensor_device"] = pytensor.config.device
+        info["pytensor_floatX"] = pytensor.config.floatX
+    except Exception:
+        info["pytensor_device"] = None
+
+    try:
+        from numba import cuda
+        info["cuda_available"] = cuda.is_available()
+    except Exception:
+        info["cuda_available"] = False
+
+    return info
+
+@st.cache_data
+def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=None, units_flux_in=None,
+                  crop_waves=None, crop_flux=None, id_label=None, delimiter=None,
+                  comments='#', skiprows=1, usecols=None, wave_units_out=None,
+                  flux_units_out=None):
 
 
     # Unit conversion if necessary
@@ -234,6 +298,8 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
                    'norm_flux': None if norm_flux is None else float(norm_flux),
                    'units_wave': units_wave_in,
                    'units_flux': units_flux_in,
+                   'crop_waves': crop_waves,
+                   'crop_flux': crop_flux,
                    'delimiter': delimiter,
                    'comments': comments,
                    'skiprows': skiprows,
@@ -261,6 +327,34 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
 @st.cache_data
 def load_infer_data(file_address):
     return load_dataset(file_address)
+
+
+@st.cache_data
+def get_instrument_cfg() -> dict[str, DataFrame]:
+    """Capture lime.show_instrument_cfg() output and parse into DataFrames per type."""
+    buffer = StringIO()
+    with redirect_stdout(buffer):
+        show_instrument_cfg()
+
+    sections, current_label, current_rows = {}, None, []
+    for line in buffer.getvalue().splitlines():
+        if line.endswith(":"):
+            if current_label:
+                sections[current_label] = current_rows
+            current_label, current_rows = line.rstrip(":"), []
+        elif line.strip() and current_label:
+            parts = line.split("\t")
+            idx, name = parts[0].strip(), parts[1].strip()
+            fields = {k.strip(): v.strip() for k, v in (f.split(":") for f in parts[2:])}
+            current_rows.append({"name": name, **fields})
+    if current_label:
+        sections[current_label] = current_rows
+
+    return {label: DataFrame(rows) for label, rows in sections.items()}
+
+@st.cache_data
+def load_emiss_dataset():
+    return load_dataset(LOCAL_FOLDER.parent/f'resources/data/emissivity_grids_pyneb_1.1.30.nc')
 
 
 def parse_line_bands_df(uploaded_object):

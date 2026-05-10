@@ -13,7 +13,7 @@ from specsy import extinction_coeff_calc
 
 from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
                                               widget_text_to_list, on_bands_edit, clear_obj_data, widget_save_state, parse_fit_cfg,
-                                              save_objSample, parse_toml_input, on_toml_change)
+                                              save_objSample, get_instrument_cfg, on_toml_change)
 
 from specsy_online.utils.tools import dynamic_input_data_editor
 from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction, plot_bokeh_bands
@@ -34,6 +34,7 @@ INSTRUMENT_LIST = ['sdss', 'osiris', 'isis', 'nirspec', 'cos', 'text']
 
 SURVEY_LIST = ['CEERS', 'CAPERS', 'PID17515']
 
+CODE_EXAMPLE_LOAD_SPECTRUM = None
 
 def unit_conversion_inputs(column_wave, column_flux, label_wave, label_flux, default_wave_units=None, default_flux_units=None):
 
@@ -137,96 +138,99 @@ def extinction_form(df_key):
     lines_df = s_state[df_key]
     lines_H1 = lines_df.loc[lines_df.particle == 'H1'].index.to_numpy()
     idx_column = lines_df.columns.get_loc('profile_flux') if 'profile_flux' in lines_df.columns else 0
-    with ((st.form('extinction_form', border=True, enter_to_submit=False, clear_on_submit=False))):
 
-        # Lines parameters
-        st.write('Inputs/outputs:')
-        colX, colY, colZ = st.columns([0.3, 0.3, 0.3])
-        with colX:
-            flux_column = st.selectbox('Flux column', lines_df.columns, index=idx_column)
+    if lines_H1.size > 1:
+        with ((st.form('extinction_form', border=True, enter_to_submit=False, clear_on_submit=False))):
 
-        with colY:
+            # Lines parameters
+            st.write('Inputs/outputs:')
+            colX, colY, colZ = st.columns([0.3, 0.3, 0.3])
+            with colX:
+                flux_column = st.selectbox('Flux column', lines_df.columns, index=idx_column)
+
+            with colY:
+                st.write("")
+                st.write("")
+                message = 'Recalculate the extinction coefficient to use the Balmer β wavelength as the relative value'
+                Hbeta_conv_check = st.toggle(r'Convert to c(Hβ)', value='True', help=message)
+
+            with colZ:
+                st.write("")
+                st.write("")
+                message = 'Negative and NaN fluxes/uncertainties will be excluded from the calculation'
+                non_phys_check = st.toggle(r'Exclude non-physical', value='True', help=message)
+
+            # Lines parameters
             st.write("")
+            st.write('Lines selection:')
+
+            colA, colB, colC = st.columns([0.3, 0.3, 0.3])
+            with colA:
+                idx_default_norm = int(argsort(-lines_df.loc[lines_H1, lines_df.columns[idx_column]].to_numpy())[1])
+                norm_line = st.selectbox('Normalization line', lines_H1, index=idx_default_norm)
+
+            with colB:
+                input_list = st.multiselect('Input lines', options=lines_H1, default=None, placeholder='All')
+                input_list = None if len(input_list) == 0 else input_list
+
+            with colC:
+                exclude_list = st.multiselect('Exclude lines', options=lines_H1, default=None, placeholder='None')
+                exclude_list = None if len(exclude_list) == 0 else exclude_list
+
+            # Lines parameters
             st.write("")
-            message = 'Recalculate the extinction coefficient to use the Balmer β wavelength as the relative value'
-            Hbeta_conv_check = st.toggle(r'Convert to c(Hβ)', value='True', help=message)
+            st.write('Physical model:')
 
-        with colZ:
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                reddening_laws = ["CCM89", "CCM89 Bal07", "CCM89 oD94", "S79 H83 CCM89","K76","SM79 Gal", "G03 LMC",
+                                  "MCC99 FM90 LMC", "F99-like", "F99","F88 F99 LMC"]
+                law = st.selectbox("Reddening Law", reddening_laws)
+
+            with col2:
+                R_V = st.number_input("Rᵥ", min_value=0.0, value=3.1, step=0.1)
+
+            with col3:
+                tem = st.number_input("Temperature (K)", min_value=500, value=10000, step=1000)
+
+            with col4:
+                den = st.number_input("Density (1/cm³)", min_value=1.0, value=100.0, step=100.0)
+
             st.write("")
-            st.write("")
-            message = 'Negative and NaN fluxes/uncertainties will be excluded from the calculation'
-            non_phys_check = st.toggle(r'Exclude non-physical', value='True', help=message)
+            submitted = st.form_submit_button("Compute extinction")
 
-        # Lines parameters
-        st.write("")
-        st.write('Lines selection:')
+            if submitted:
 
-        colA, colB, colC = st.columns([0.3, 0.3, 0.3])
-        with colA:
-            idx_default_norm = int(argsort(-lines_df.loc[lines_H1, lines_df.columns[idx_column]].to_numpy())[1])
-            norm_line = st.selectbox('Normalization line', lines_H1, index=idx_default_norm)
+                st.write('***')
+                st.write('## Results')
+                st.write("")
+                cHbeta, cHbeta_err, log_extinc = extinction_coeff_calc(lines_df, norm_line, R_V, law, tem, den, rel_Hbeta=Hbeta_conv_check,
+                                                           flux_column=flux_column, line_list=input_list, exclude_list=exclude_list)
 
-        with colB:
-            input_list = st.multiselect('Input lines', options=lines_H1, default=None, placeholder='All')
-            input_list = None if len(input_list) == 0 else input_list
+                red_cor = RedCorr(R_V=R_V, law=law, cHbeta=cHbeta)
 
-        with colC:
-            exclude_list = st.multiselect('Exclude lines', options=lines_H1, default=None, placeholder='None')
-            exclude_list = None if len(exclude_list) == 0 else exclude_list
+                out1, out2, out3 = st.columns([0.27, 0.32, 0.25])
+                with out1:
+                    if Hbeta_conv_check:
+                        coeff_label = r'c(H\beta)'
+                    else:
+                        coeff_label = Line(norm_line).latex_label[0]
+                        coeff_label = f'c({coeff_label.replace("$", "")})'
+                    st.markdown(rf"${coeff_label} = {cHbeta:.3f}\pm{cHbeta_err:.3f}$")
 
-        # Lines parameters
-        st.write("")
-        st.write('Physical model:')
+                with out2:
+                    E_BV_err = cHbeta_err * 2.5 / red_cor.X(4861.25)
+                    st.markdown(rf"$E(V - B) = {red_cor.E_BV:.3f}\pm{E_BV_err:.3f}$")
 
-        col1, col2, col3, col4 = st.columns(4)
+                with out3:
+                    A_V_err = E_BV_err * R_V
+                    st.markdown(rf"$A_{{V}} = {red_cor.AV:.3f}\pm{A_V_err:.3f}$")
 
-        with col1:
-            reddening_laws = ["CCM89", "CCM89 Bal07", "CCM89 oD94", "S79 H83 CCM89","K76","SM79 Gal", "G03 LMC",
-                              "MCC99 FM90 LMC", "F99-like", "F99","F88 F99 LMC"]
-            law = st.selectbox("Reddening Law", reddening_laws)
-
-        with col2:
-            R_V = st.number_input("Rᵥ", min_value=0.0, value=3.1, step=0.1)
-
-        with col3:
-            tem = st.number_input("Temperature (K)", min_value=500, value=10000, step=1000)
-
-        with col4:
-            den = st.number_input("Density (1/cm³)", min_value=1.0, value=100.0, step=100.0)
-
-        st.write("")
-        submitted = st.form_submit_button("Compute extinction")
-
-        if submitted:
-
-            st.write('***')
-            st.write('## Results')
-            st.write("")
-            cHbeta, cHbeta_err, log_extinc = extinction_coeff_calc(lines_df, norm_line, R_V, law, tem, den, rel_Hbeta=Hbeta_conv_check,
-                                                       flux_column=flux_column, line_list=input_list, exclude_list=exclude_list)
-
-            red_cor = RedCorr(R_V=R_V, law=law, cHbeta=cHbeta)
-
-            out1, out2, out3 = st.columns([0.27, 0.32, 0.25])
-            with out1:
-                if Hbeta_conv_check:
-                    coeff_label = r'c(H\beta)'
-                else:
-                    coeff_label = Line(norm_line).latex_label[0]
-                    coeff_label = f'c({coeff_label.replace("$", "")})'
-                st.markdown(rf"${coeff_label} = {cHbeta:.3f}\pm{cHbeta_err:.3f}$")
-
-            with out2:
-                E_BV_err = cHbeta_err * 2.5 / red_cor.X(4861.25)
-                st.markdown(rf"$E(V - B) = {red_cor.E_BV:.3f}\pm{E_BV_err:.3f}$")
-
-            with out3:
-                A_V_err = E_BV_err * R_V
-                st.markdown(rf"$A_{{V}} = {red_cor.AV:.3f}\pm{A_V_err:.3f}$")
-
-            # Extinction plot
-            bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta=Hbeta_conv_check)
-
+                # Extinction plot
+                bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta=Hbeta_conv_check)
+    else:
+        st.warning(f'No hydrogen lines')
 
     return
 
@@ -244,27 +248,34 @@ def load_spectrum_tab():
     # File
     with col_B:
         message_help = 'The text file must follow the expect format'
-        uploaded_file = st.file_uploader(label='Local address', type=['.fits', '.txt', '.csv'],
+        uploaded_file = st.file_uploader(label='Spectrum file browser', type=['.fits', '.txt', '.csv'],
                                          accept_multiple_files=False, key='spec_uploader', help=message_help)
 
-    with st.expander(label='Text file properties', expanded=False):
-        col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
+        # Instrument configuration
+        with st.expander("Default instrument file settings", icon=":material/satellite_alt:"):
+            cfg = get_instrument_cfg()
+            for label, df in cfg.items():
+                st.caption(label)
+                st.dataframe(df, hide_index=True, use_container_width=True)
 
-        with col_A:
-            message_help = 'Delimiter between columns'
-            separator = st.text_input('Delimiter', value=None, placeholder='Whitespace', help=message_help)
+        with st.expander(label='Text file properties', expanded=False, icon=":material/docs:"):
+            col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
 
-        with col_B:
-            message_help = 'Comments'
-            comments = st.text_input('Comments', value='#', help=message_help)
+            with col_A:
+                message_help = 'Delimiter between columns'
+                separator = st.text_input('Delimiter', value=None, placeholder='Whitespace', help=message_help)
 
-        with col_C:
-            message_help = 'Number of rows to skip'
-            skiprows = st.number_input('Skip rows', value=0, help=message_help)
+            with col_B:
+                message_help = 'Comments'
+                comments = st.text_input('Comments', value='#', help=message_help)
 
-        with col_D:
-            message_help = 'Columns to use in text file.'
-            usecols = st.text_input('Use columns rows', value=None, placeholder="0,3,4", help=message_help)
+            with col_C:
+                message_help = 'Number of rows to skip'
+                skiprows = st.number_input('Skip rows', value=0, help=message_help)
+
+            with col_D:
+                message_help = 'Columns to use in text file.'
+                usecols = st.text_input('Use columns rows', value=None, placeholder="0,3,4", help=message_help)
 
     st.markdown(f'#### Observation properties')
     col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
@@ -284,23 +295,46 @@ def load_spectrum_tab():
                                                          SPECTRUM_FITS_PARAMS[instrument]['units_wave'],
                                                          SPECTRUM_FITS_PARAMS[instrument]['units_flux'])
 
+    col_E, col_F, col_G, col_H = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
+
+    # crop_waves
+    with col_E:
+        message_help = 'Minimum wavelength to crop the input spectrum. Leave empty to use the full range.'
+        wave_min = st.number_input('Wave crop min', value=None, step=100, help=message_help)
+    with col_F:
+        message_help = 'Maximum wavelength to crop the input spectrum. Leave empty to use the full range.'
+        wave_max = st.number_input('Wave crop max', value=None, step=100, help=message_help)
+
+    # crop_flux
+    with col_G:
+        message_help = 'Minimum flux percentile to clip the flux array. Defaults to 0 percentile.'
+        flux_min = st.number_input('Flux crop min percentile', min_value=0, max_value=100, step=1, value=None,
+                                   help=message_help)
+    with col_H:
+        message_help = 'Maximum flux percentile to clip the flux array. Defaults to 100th percentile.'
+        flux_max = st.number_input('Flux crop max percentile', min_value=0, max_value=100, step=1, value=None,
+                                   help=message_help)
+
+    # Pack into tuples, None if both ends are empty
+    crop_waves = (wave_min, wave_max) if (wave_min is not None or wave_max is not None) else None
+    if flux_min is not None or flux_max is not None:
+        crop_flux = (flux_min if flux_min is not None else 0, flux_max if flux_max is not None else 100)
+    else:
+        crop_flux = None
+
     # Unit conversion
     st.markdown(f'#### Unit conversion')
     col_A, col_B, _, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
     wave_units_out, flux_units_out= unit_conversion_inputs(col_A, col_B, 'Wavelength units out', 'Flux units out')
 
-    # Every form must have a submit button.
-    st.markdown("")
-    message_label = 'Once you are satisfied with the attributes selection click the button below.'
-    st.markdown(message_label)
 
+    st.space('xsmall')
     with st.form('load_spec_form', border=False, enter_to_submit=False, clear_on_submit=False):
 
         # submitted = st.button("Load observation")
-        submitted = st.form_submit_button("Submit")
+        submitted = st.form_submit_button("Get spectrum")
 
         if submitted:
-
 
             if uploaded_file:
 
@@ -310,6 +344,7 @@ def load_spectrum_tab():
                     clear_obj_data()
 
                     spec = load_spectrum(uploaded_file, instrument, z_string, norm_flux_string, wave_units_in, flux_units_in,
+                                         crop_waves, crop_flux,
                                          uploaded_file.name, separator, comments, skiprows, usecols,
                                          wave_units_out, flux_units_out)
 
@@ -444,33 +479,30 @@ def fix_vsigma_formatting(section):
 
 def general_band_settings(def_linelist, default_particle_list, def_df):
 
-    st.markdown(f'##### Transitions')
-
     # Particle selection
-    st.multiselect(label='Particle selection:', options=default_particle_list, placeholder='All', default=None,
-                   key='ion_list', help='Bands will be limited to these particles. These candidate list was cropped'
-                                        ' to the observation wavelength range')
+    st.multiselect(label='Particles', options=default_particle_list, placeholder='All', default=None,
+                   key='ion_list', help='Bands will be limited to these particles.')
 
     # Line selection
     in_lines = def_linelist if len(s_state['ion_list']) == 0 else def_df.loc[
         def_df.particle.isin(s_state['ion_list'])].index.sort_values().to_list()
-    st.multiselect(label='Selected lines', options=in_lines, default=None, key='lines_selected', placeholder='All',
-                   label_visibility="visible", help='Select the transitions for the output lines table. By default '
-                                                    'all lines will be considered')
+    st.multiselect(label='Include lines', options=in_lines, default=None, key='lines_selected', placeholder='All',
+                   label_visibility="visible", help='Select the transitions for the output lines table, by default '
+                                                    'all lines will be considered.')
     # Rejected liens
     in_lines = def_linelist if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])].index.sort_values().to_list()
-    st.multiselect(label='Rejected lines', options=in_lines, default=None, key='out_lines', placeholder='None',
+    st.multiselect(label='Exclude lines', options=in_lines, default=None, key='out_lines', placeholder='None',
                    label_visibility="visible", help='Excludes lines from the output lines table.')
 
-    # Vacuum wavelengths
-    st.toggle("Vacuum wavelengths", value=False, key='vacuum_check', help='Set all transition wavelengths '
-                                                                          'to vacuum values. The default behaviour is transitions 2000Å < λ < 10000Å with air values.')
-
-    st.space('small')
-    st.markdown(f'##### Central bands width')
-
     # Bands kinematics
-    col1, col2, col3, col4, col5 = st.columns([0.2, 0.25, 0.15, 0.15, 0.3], gap='small')
+    col0, col1, col2, col3, col4 = st.columns([0.2, 0.2, 0.2, 0.2, 0.2], gap='small')
+
+    # Vacuum wavelengths
+    with col0:
+        st.space('xxsmall')
+        st.space('xxsmall')
+        st.toggle("Vacuum wavelengths", value=False, key='vacuum_check', help='Set all transition wavelengths '
+                 'to vacuum values. The default behaviour is transitions within 2000Å < λ < 10000Å have air values.')
 
     # Central bandwidth correction
     with col1:
@@ -499,69 +531,67 @@ def general_band_settings(def_linelist, default_particle_list, def_df):
         st.number_input('Sigma number', min_value=1, value=4, step=1, key='n_sigma',
                                       help=msg, disabled=not s_state['adj_central'])
 
-
     return
 
 
 def fitcfg_band_settings(def_linelist, default_particle_list, def_df, wave_rest):
 
+    # Section to generate examples
+    st.markdown(f'#### Configuration entries')
+
+    # Add default settings
+    st.markdown(f'Generate a list of line groups from the selected particles')
+    in_df = def_df if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])]
+    st.button(label="Predict merged|blended line groups", on_click=prepare_default, args=(wave_rest, in_df), use_container_width=True)
+
     # Kinematic components row
-    colA, colB = st.columns([0.5, 0.5])
+    st.markdown(f'Add a broad kinematic components configuration entries for the selected lines')
     in_lines = def_linelist if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])].index.sort_values().to_list()
 
+    colA, colB = st.columns([0.5, 0.5])
     with colA:
-        st.multiselect(label="Select lines", options=in_lines, placeholder="Choose lines to add broad component",
-                       key="selected_lines")
-
+        st.multiselect(label="Select lines", options=in_lines, placeholder="Select lines",
+                       key="selected_lines", label_visibility="collapsed")
     with colB:
-        st.write("")
-        st.write("")
-        st.button(label="Add kinematic components", on_click=add_kinematic_components, use_container_width=True)
+        st.button(label="Broad components", on_click=add_kinematic_components, use_container_width=True)
 
-    colC, colD, colE = st.columns([0.4, 0.25, 0.35])
 
+    colC, colD, colE = st.columns([0.4, 0.1, 0.5])
     with colC:
-        st.multiselect(label="Lines velocity width",  options=in_lines, placeholder="Choose lines", default=None,
-                       key="vsigma_lines")
-
+        st.markdown(f'Change the band velocity dispersion for certain lines')
+        st.multiselect(label="Lines velocity width",  options=in_lines, placeholder="Select lines", default=None,
+                       key="vsigma_lines", label_visibility="collapsed")
     with colD:
-        st.number_input(label="Velocity (km/s)", min_value=1, value=200, step=20, key="vsigma_velocity")
-
+        st.markdown("Velocity (km/s)")
+        st.number_input(label="Velocity (km/s)", min_value=1, value=200, step=20, key="vsigma_velocity",
+                        label_visibility="collapsed")
     with colE:
-        st.write("")
-        st.write("")
-        st.button(label="Add velocity width", on_click=add_vsigma_components, use_container_width=True)
+        st.space(25)
+        st.button(label="Bands velocity dispersion", on_click=add_vsigma_components, use_container_width=True)
 
-    col_toggle, col_button = st.columns([0.5, 0.5])
+    # Toggle to add groups generated to
+    col_toggleA, col_toggleB, _ = st.columns([0.3, 0.3, 0.4])
+    with col_toggleA:
+        st.toggle(label='Add new entries to "grouped_lines" list', value=True, key="group_lines_toggle")
+    with col_toggleB:
+        st.toggle("Automatic group selection", value=False, key='auto_group',
+                  help='Automatic selection of the group selected by the user')
+    st.space('small')
 
-    with col_toggle:
-        st.write("")
-        st.write("")
-        st.toggle(label="Add to grouped_lines", value=True, key="group_lines_toggle")
+    # Fitting configuration equivalent
+    st.markdown(f'#### Fitting configuration')
+    st.markdown(f'This section represents an [input toml file](https://toml.io/en/) for LiMe functions. Please check the '
+                f'[documentation](https://lime-stable.readthedocs.io/en/latest/1_introduction/5_fitting_configuration.html#loading-the-fitting-configuration-from-a-text-file) '
+                f'for more tips on how to adjust your fittings')
+    st.text_area(label="Toml file", value=st.session_state.toml_text, label_visibility="collapsed",
+                 height=300, key=f"toml_input_{st.session_state.toml_area_key}", on_change=on_toml_change)
 
-    in_df = def_df if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])]
-    with col_button:
-        st.write("")
-        st.write("")
-        st.button(label="Predict groups", on_click=prepare_default,
-                  args=(wave_rest, in_df), use_container_width=True)
-
-    st.markdown(f'##### Fitting configuration')
-    st.text_area(label="Bands configuration",
-                 value=st.session_state.toml_text,
-                 height=300,
-                 help="Enter your bands configuration in TOML format",
-                 key=f"toml_input_{st.session_state.toml_area_key}",
-                 on_change=on_toml_change)
-
-    st.toggle("Automatic grouping", value=False, key='auto_group', help='Autmatic selection of the group selected by the user')
 
     return
 
 
 def compute_bands():
 
-    # Initial configuration values
     if "bands_cfg" not in st.session_state:
         default = {"default_line_fitting": {}}
         st.session_state.bands_cfg = tomlkit.loads(tomlkit.dumps(default))
@@ -572,26 +602,30 @@ def compute_bands():
     if "toml_area_key" not in st.session_state:
         st.session_state.toml_area_key = 0
 
+    tab_general, tab_fit_cfg, tab_upload = st.tabs(["Global settings", "Fit configuration settings", "Load from file"])
+
     # Input spectra definition
     spec = s_state['spec']
     def_df = spec.retrieve.lines_frame()
     def_linelist = def_df.index.sort_values().to_list()
     default_particle_list = list(def_df.particle.sort_values().unique())
 
-    # General settings versus config settings
-    general_band_col, fitcfg_band_col = st.columns([0.60, 0.40], gap='large')
-
-    with general_band_col:
+    # Initial configuration values
+    with tab_general:
         general_band_settings(def_linelist, default_particle_list, def_df)
 
-    with fitcfg_band_col:
+    # Fit config mode
+    with tab_fit_cfg:
         fitcfg_band_settings(def_linelist, default_particle_list, def_df, spec.wave_rest.data)
+
+    # Load from file
+    with tab_upload:
+        st.markdown(f'### Frame file address')
+        uploaded_file = st.file_uploader("Choose a '.txt' file", type=['.txt'])
 
     # Generate the bands
     st.space('small')
-    submitted = st.button("Generate bands")
-
-    if submitted:
+    if st.button("Generate bands"):
 
         # Delete previous bands df if present
         if s_state['bands_df'] is not None:
@@ -603,12 +637,15 @@ def compute_bands():
         else:
             st.session_state['bands_editor_version'] += 1
 
-        # Generate bands
-        spec = s_state['spec']
-        input_cfg =parse_lime_cfg(tomlkit.loads(st.session_state.toml_text).unwrap())
+        # Uploaded file always overwrite but warning is given
+        if uploaded_file is None:
+            spec = s_state['spec']
+            input_cfg = parse_lime_cfg(tomlkit.loads(st.session_state.toml_text).unwrap())
+        else:
+            st.warning(f'Using uploaded bands')
+            input_cfg = None
 
         if input_cfg is not None:
-            st.write(s_state['auto_group'])
             bands = spec.retrieve.lines_frame(line_list=s_state['lines_selected'] or None,
                                               particle_list=s_state['ion_list'] or None,
                                               vacuum_waves=s_state['vacuum_check'],
@@ -621,6 +658,12 @@ def compute_bands():
                                               instrumental_correction=s_state['instr_corr'],
                                               update_latex=False)
             save_state('bands_df', bands)
+
+        else:
+            try:
+                save_state('bands_df', parse_line_bands_df(uploaded_file))
+            except Exception as e:
+                st.error(f"An error occurred loading the line bands file:\n{e}")
 
     return
 
@@ -812,7 +855,7 @@ def review_bounds():
 
 
 def band_sliders(selected, wave_rest, wbands, idx_min, idx_max):
-    labels = [("Left continuum", "w1 / w2"), ("Line region", "w3 / w4"), ("Right continuum", "w5 / w6")]
+    labels = [("Blue continuum", "w1 - w2"), ("Line region", "w3 - w4"), ("Red continuum", "w5 - w6")]
     keys = ["left", "center", "right"]
     idxs = searchsorted(wave_rest, wbands).tolist()
 
@@ -850,16 +893,16 @@ def tab_single_editor(edited_df, spec):
         col_left, col_center, col_right = st.columns(3)
 
         with col_left:
-            st.markdown("**Left continuum**")
-            s1, s2 = st.slider("w1 / w2", min_value=idx_min, max_value=idx_max,
+            st.markdown("**Blue continuum**")
+            s1, s2 = st.slider("w1 - w2", min_value=idx_min, max_value=idx_max,
                                value=(int(idx1), int(idx2)), key=f"slider_left_{selected}")
         with col_center:
             st.markdown("**Line region**")
-            s3, s4 = st.slider("w3 / w4", min_value=idx_min, max_value=idx_max,
+            s3, s4 = st.slider("w3 - w4", min_value=idx_min, max_value=idx_max,
                                value=(int(idx3), int(idx4)), key=f"slider_center_{selected}")
         with col_right:
-            st.markdown("**Right continuum**")
-            s5, s6 = st.slider("w5 / w6", min_value=idx_min, max_value=idx_max,
+            st.markdown("**Red continuum**")
+            s5, s6 = st.slider("w5 - w6", min_value=idx_min, max_value=idx_max,
                                value=(int(idx5), int(idx6)), key=f"slider_right_{selected}")
 
         limits_new = array([wave_rest[s1], wave_rest[s2], wave_rest[s3],
@@ -889,6 +932,7 @@ def bands_review():
                                key=f"bands_editor_{st.session_state['bands_editor_version']}")
 
     # Tabs showing the full spectrum
+    st.space('small')
     tabs_all, tab_single = st.tabs(['Full spectrum', 'Individual bands'])
 
     with tabs_all:
@@ -917,8 +961,7 @@ def display_menu():
             # Download
             rec_arr = get_text_spectrum('spec')
             csv = convert_for_download(rec_arr)
-            st.markdown(f'Click the button below to download the spectrum as a text file.')
-            st.download_button(label="Download", data=csv, file_name="spectrum.csv", mime="text/csv",
+            st.download_button(label="Download as .txt", data=csv, file_name="spectrum.csv", mime="text/csv",
                                icon=":material/download:")
 
         elif s_state['obs_type'] == 'collaboration':
@@ -1042,22 +1085,21 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
     # Formating for the labels
     st.markdown(REGION_TAGS_STYLE, unsafe_allow_html=True)
 
-    col_reg, col_norm, col_kinem, _ = st.columns([0.25, 0.25, 0.25, 0.25])
+    col_reg, col_kinem, col_norm, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='medium')
 
     # Number of regions selectbox
     with col_reg:
         n_regions = st.selectbox(label="Number of regions", options=[1, 2, 3, 4], key="n_regions",
                                  help="Changing the number of regions clears all widget state.")
+
+    with col_kinem:
+        st.selectbox(label="Kinematic component", options=[0], key="kinem_order_specsy", help="Normalization label.")
+
     with col_norm:
         st.space('xxsmall')
         st.space('xxsmall')
-        norm_check = st.toggle(label="Normalize fluxes", value=True, key="norm_check",
-                               help="Divide the fluxes by H1_4861A")
+        st.toggle(label="Normalize fluxes", value=True, key="norm_check", help="Divide the fluxes by H1_4861A")
 
-        # norm_line = st.selectbox(label="Normalization line", options=['H1_4861A'], key="norm_line_specsy",
-        #                          help="Normalization label.")
-    with col_kinem:
-        st.selectbox(label="Kinematic component", options=[0], key="kinem_order_specsy", help="Normalization label.")
 
     # ── Session-state reset when n_regions changes ────────────────────────────────
     _sentinel_key = f"__sentinel_{n_regions}__"
@@ -1067,7 +1109,7 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
                 del st.session_state[k]
         st.session_state[_sentinel_key] = True
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # st.markdown("<br>", unsafe_allow_html=True)
 
     region_labels = REGION_LABELS[n_regions]
 
@@ -1124,14 +1166,13 @@ def sampler_cfg_widget():
 
     cores_max = cpu_count() or 1
     cores_recommended = max((1, cores_max - 4))
-    st.write(cores_max, cores_recommended)
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        st.number_input("Draws", min_value=100, value=1000, step=500, key='draws_pymc')
+        st.number_input("Draws", min_value=100, value=300, step=500, key='draws_pymc')
 
     with col2:
-        st.number_input("Tune", min_value=100, value=2000, step=200, key='tune_pymc')
+        st.number_input("Tune", min_value=100, value=300, step=200, key='tune_pymc')
 
     with col3:
         st.number_input(f"Chains (max = {cores_max})", min_value=1, max_value=cores_max,

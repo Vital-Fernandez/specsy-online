@@ -25,7 +25,7 @@ def compute_redshift(spec):
     return
 
 
-def structure_manager(region_label):
+def structure_manager(region_label, lines_df, norm_line):
 
     struct_dict = {'region': {}}
     st_warnings = []
@@ -54,7 +54,11 @@ def structure_manager(region_label):
         if struct_dict['region'][f'r{idx}']['den_eq'] is 'None':
             struct_dict['region'][f'r{idx}']['den_eq'] = None
 
+    if not lines_df.index.isin([norm_line]).any():
+        st_warnings.append(f'{norm_line} is not present in line measurements table')
+
     sstate['structure_dict'] = struct_dict
     st_warnings = None if len(st_warnings) == 0 else st_warnings
 
     return st_warnings
+

@@ -1,5 +1,6 @@
 import streamlit as st
-from specsy_online.utils.input_output import load_logo
+from os import cpu_count
+from specsy_online.utils.input_output import load_logo, get_versions, get_sampler_backends, get_device_info
 from specsy_online.utils.sidebar import sidebar_widgets
 
 
@@ -23,15 +24,13 @@ with col_welcome:
     st.markdown(f'# SpecSy')
 
 # Introduction text
-st.markdown("***")
-st.markdown(
-                """
+st.space('medium')
+st.markdown("""
                 <p style='font-size:20px;'>
                 Welcome to the Spectra Synthesis platform.
                 Use the sidebar menu to navigate the tools.
                 </p>
-                """,
-                unsafe_allow_html=True
+                """, unsafe_allow_html=True
             )
 
 # References
@@ -61,4 +60,48 @@ with st.expander("Data references", icon=":material/import_contacts:"):
 
         unsafe_allow_html=True
     )
+
+with st.expander("Dependencies installed", icon=":material/package_2:"):
+    versions = get_versions()
+    cols = st.columns(3)
+    for i, (label, version) in enumerate(versions.items()):
+        cols[i % 3].metric(label=label, value=f"v{version}")
+
+with st.expander("Sampler backends", icon=":material/tune:"):
+    backends = get_sampler_backends()
+    cols = st.columns(3)
+    for i, (pkg, version) in enumerate(backends.items()):
+        if version:
+            cols[i % 3].metric(label=pkg, value=f"v{version}")
+        else:
+            cols[i % 3].metric(label=pkg, value="unavailable", delta="not installed", delta_color="off")
+
+    st.divider()
+    device_info = get_device_info()
+    cpu_col, jax_col, pytensor_col, cuda_col = st.columns(4)
+    cpu_col.metric(label="CPU cores", value=device_info["cpu_cores"])
+    if device_info.get("jax_backend"):
+        jax_label = f"JAX ({', '.join(device_info['jax_devices'])})"
+        jax_col.metric(label="JAX backend", value=device_info["jax_backend"], help=jax_label)
+    else:
+        jax_col.metric(label="JAX backend", value="unavailable", delta="not installed", delta_color="off")
+    if device_info.get("pytensor_device"):
+        pytensor_col.metric(label="PyTensor device", value=device_info["pytensor_device"],
+                            help=f"floatX: {device_info['pytensor_floatX']}")
+    else:
+        pytensor_col.metric(label="PyTensor device", value="unavailable", delta="not installed", delta_color="off")
+    cuda_col.metric(
+        label="CUDA (numba)",
+        value="available" if device_info["cuda_available"] else "unavailable",
+        delta=None,
+        delta_color="off" if not device_info["cuda_available"] else "normal"
+    )
+
+    jax_devices_col, _ = st.columns([0.25, 0.75])
+    try:
+        import jax
+        jax_devices_col.metric(label="JAX device count", value=jax.local_device_count(),
+                               help="Set with `numpyro.set_host_device_count(os.cpu_count())` before importing JAX")
+    except Exception:
+        jax_devices_col.metric(label="JAX device count", value="unavailable", delta="not installed", delta_color="off")
 

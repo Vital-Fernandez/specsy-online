@@ -274,7 +274,7 @@ def trace_diagnostics_plots(trace):
         st.dataframe(df, column_order=['mean', 'sd', 'hdi_3%', 'hdi_97%', 'r_hat'])
 
         fig_cfg = None
-        fig = bokeh_flux_grid(trace, in_fig=None, fig_cfg=fig_cfg, n_cols=10)
+        fig = bokeh_flux_grid(trace, in_fig=None, fig_cfg=fig_cfg, n_cols=7)
         streamlit_bokeh(fig)
 
     # Scatter plot matrix
@@ -301,7 +301,7 @@ def plot_bokeh_bands(wave_plot, flux_plot, selected_line, bands_arr, log_check):
 
     source = ColumnDataSource(dict(wave=wave_plot, flux=flux_plot))
 
-    p = figure(width=800, height=350, title=selected_line, x_axis_label='Wavelength (Å)', y_axis_label='Flux',
+    p = figure(width=800, height=350, title=selected_line, x_axis_label='Rest Wavelength', y_axis_label='Flux',
                y_axis_type=y_axis_type, tools="xpan,xwheel_zoom,reset,save")
 
     p.step('wave', 'flux', source=source, color=theme_specsy.colors['fg'], line_width=1)
