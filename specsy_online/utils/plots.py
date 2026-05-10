@@ -6,7 +6,6 @@ from bokeh.models import LinearColorMapper
 from lime.plotting.format import theme as theme_lime
 from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid, extinction_gradient
 from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
-from tests.test_tools import wave_array
 from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
 import streamlit as st
@@ -14,7 +13,7 @@ from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
 from astropy.visualization import ZScaleInterval
 from arviz import summary
-from bokeh.models import TapTool, CustomJS, ColumnDataSource, BoxAnnotation, Span
+from bokeh.models import ColumnDataSource, BoxAnnotation
 
 
 Z_FUNC_CMAP = ZScaleInterval()
