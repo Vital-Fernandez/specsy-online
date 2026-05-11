@@ -269,8 +269,14 @@ def trace_diagnostics_plots(trace):
 
     # Trace plot
     with tabSummary:
+
+        st.space('small')
+        st.markdown(f'Measurements table:')
         df = summary(trace)
         st.dataframe(df, column_order=['mean', 'sd', 'hdi_3%', 'hdi_97%', 'r_hat'])
+
+        st.space('small')
+        st.markdown(f'Posterior line flux distributions (color coded by ion) versus observed values (shaded area)')
 
         fig_cfg = None
         fig = bokeh_flux_grid(trace, in_fig=None, fig_cfg=fig_cfg, n_cols=7)

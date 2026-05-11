@@ -27,6 +27,9 @@ def compute_redshift(spec):
 
 def structure_manager(region_label, lines_df, norm_line):
 
+    if lines_df is None:
+        return ['No line measurements available']
+
     struct_dict = {'region': {}}
     st_warnings = []
 

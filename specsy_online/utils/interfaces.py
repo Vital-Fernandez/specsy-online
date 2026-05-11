@@ -10,10 +10,12 @@ from lime.io import parse_lime_cfg
 from lime.transitions import au, Line
 from lime.retrieve.line_bands import get_spectrum_line_groups
 from specsy import extinction_coeff_calc
+from specsy.models.literature import TEM_FUNC_DICT, DEN_FUNC_DICT
 
 from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
                                               widget_text_to_list, on_bands_edit, clear_obj_data, widget_save_state, parse_fit_cfg,
                                               save_objSample, get_instrument_cfg, on_toml_change)
+
 
 from specsy_online.utils.tools import dynamic_input_data_editor
 from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction, plot_bokeh_bands
@@ -1095,11 +1097,6 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
     with col_kinem:
         st.selectbox(label="Kinematic component", options=[0], key="kinem_order_specsy", help="Normalization label.")
 
-    with col_norm:
-        st.space('xxsmall')
-        st.space('xxsmall')
-        st.toggle(label="Normalize fluxes", value=True, key="norm_check", help="Divide the fluxes by H1_4861A")
-
 
     # ── Session-state reset when n_regions changes ────────────────────────────────
     _sentinel_key = f"__sentinel_{n_regions}__"
@@ -1147,7 +1144,7 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
                     options = REGION_LABELS[n_regions] + ['relation']
                     options.remove(region_name)
                     st.selectbox(label=select_box_msg, options=options, key=f"region_{region_name}_temp_tied_to")
-                    st.selectbox(label="Temperature equation", options=['None'] + list(TEM_DICT.keys()), key=f"region_{region_name}_temp_relation")
+                    st.selectbox(label="Temperature equation", options=['None'] + list(TEM_FUNC_DICT.keys()), key=f"region_{region_name}_temp_relation")
 
             with c4:
                 den_mode = st.selectbox(label="Density mode", options=["free", "tied"],
@@ -1156,7 +1153,7 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
                     options = REGION_LABELS[n_regions] + ['relation']
                     options.remove(region_name)
                     st.selectbox(label=select_box_msg, options=options, key=f"region_{region_name}_den_tied_to")
-                    st.selectbox(label="Relation", options=['None'] + list(DEN_DICT.keys()), key=f"region_{region_name}_den_relation")
+                    st.selectbox(label="Relation", options=['None'] + list(DEN_FUNC_DICT.keys()), key=f"region_{region_name}_den_relation")
 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1335,3 +1332,25 @@ def prior_configuration_widget(default_priors: dict, regions: list) -> dict:
             output[key] = render_prior_row(key, defaults)
 
     return output
+
+def extinction_parameters_dm():
+
+    st.markdown('The reddening law is calculated using [PyNeb](https://research.iac.es/proyecto/PyNeb/ext_law.html)')
+
+    col1, col2, col3, col4 = st.columns(4, gap='large')
+
+    with col1:
+        st.selectbox('Normalization line', ['H1_4861A'], key='norm_line_dm')
+
+    with col2:
+        st.selectbox("Reddening Law", options=["CCM89", "CCM89 Bal07", "CCM89 oD94", "S79 H83 CCM89", "K76", "SM79 Gal", "G03 LMC",
+                          "MCC99 FM90 LMC", "F99-like", "F99", "F88 F99 LMC"], key='rLaw_dm', help=f'Reddening laws using PyNeb notation')
+    with col3:
+        st.number_input("Rᵥ", min_value=0.0, value=3.1, step=0.1, key='Rv_dm')
+
+    with col4:
+        st.space('xxsmall')
+        st.space('xxsmall')
+        st.toggle(label="Normalize fluxes", value=True, key="norm_check", help="Divide the fluxes by H1_4861A")
+
+    return

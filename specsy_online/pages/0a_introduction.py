@@ -1,24 +1,19 @@
 import streamlit as st
-from os import cpu_count
 from specsy_online.utils.input_output import load_logo, get_versions, get_sampler_backends, get_device_info
 from specsy_online.utils.sidebar import sidebar_widgets
 
 
-# Url menus
-st.set_page_config(page_title="SpecSy",
-                   menu_items={'Report a bug': "https://github.com/Vital-Fernandez/specsy"},
-                   layout='wide')
-
 # Sidebar
 sidebar_widgets()
 
+# Url menus
+st.set_page_config(page_title="SpecSy", menu_items={'Report a bug': "https://github.com/Vital-Fernandez/specsy"},
+                   layout='wide')
+
 # Specsy logo and welcome
 col_logo, col_welcome = st.columns([0.4, 0.6], gap='large')
-
 with col_logo:
-    image = load_logo()
-
-    st.image(image, width=300)
+    st.image(load_logo(), width=300)
 
 with col_welcome:
     st.markdown(f'# SpecSy')
@@ -30,8 +25,7 @@ st.markdown("""
                 Welcome to the Spectra Synthesis platform.
                 Use the sidebar menu to navigate the tools.
                 </p>
-                """, unsafe_allow_html=True
-            )
+                """, unsafe_allow_html=True)
 
 # References
 with st.expander("Tools references", icon=":material/handyman:"):
@@ -58,8 +52,7 @@ with st.expander("Data references", icon=":material/import_contacts:"):
         *[The 2023 release of Cloudy.](https://arxiv.org/abs/2308.06396)*  
         """,
 
-        unsafe_allow_html=True
-    )
+        unsafe_allow_html=True)
 
 with st.expander("Dependencies installed", icon=":material/package_2:"):
     versions = get_versions()

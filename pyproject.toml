@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy-online"
-version = "0.7.3"
+version = "0.8.0"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 license = "GPL-3.0-or-later"
 authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
 description = "Streamlit wrapper for Specsy functions"
 dependencies = ["aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@master",
-                "lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@dev",
-                "innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@dev",
+                "lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@master",
+                "innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@master",
                 "specsy[tensors] @ git+https://github.com/Vital-Fernandez/specsy.git@master",
                 "pyneb~=1.1.28",
                 "tomlkit~=0.14.0",
@@ -32,4 +32,5 @@ specsy = "specsy_online.launcher:main"
 
 [tool.setuptools.package-data]
 specsy_online = ["resources/data/*",
-                 "resources/images/*", ]
+                 "resources/images/*",
+                 ".streamlit/config.toml"]

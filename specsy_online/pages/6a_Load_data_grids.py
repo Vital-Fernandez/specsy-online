@@ -1,8 +1,8 @@
 import streamlit as st
+from numpy import sort
 from streamlit import session_state as s_state
 from specsy_online.utils.sidebar import sidebar_widgets
 from specsy_online.utils.input_output import declare_atomic_data
-from numpy import sort
 from specsy_online.utils.plots import matrix_plot
 
 # Run the sidebar
