@@ -1,12 +1,15 @@
 -e .
 aspect-stable @ git+https://github.com/Vital-Fernandez/aspect.git@master
-lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@dev
-innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@dev
+lime-stable[full] @ git+https://github.com/Vital-Fernandez/lime.git@master
+innate-stable @ git+https://github.com/Vital-Fernandez/innate.git@master
 specsy @ git+https://github.com/Vital-Fernandez/specsy.git@master
 pyneb~=1.1.28
 bokeh==3.9.0
+tomlkit~=0.14.0
 streamlit==1.55.0
 streamlit-bokeh==3.9.0
 streamlit-authenticator==0.4.2
 st-gsheets-connection~=0.1
 google-api-python-client~=2.187.0
+
+
