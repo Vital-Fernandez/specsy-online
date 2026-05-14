@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy-online"
-version = "0.8.0"
+version = "0.8.1"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 license = "GPL-3.0-or-later"
 authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
 description = "Streamlit wrapper for Specsy functions"
-dependencies = ["aspect-stable>=0.7.dev2",
-                "lime-stable[full]>=2.2.dev5",
+dependencies = ["aspect-stable>=0.7.dev3",
+                "lime-stable[full]>=2.2.dev6",
                 "innate-stable>=0.2.1",
-                "specsy[tensors]>=0.9.dev3",
+                "specsy[tensors]>=0.9.dev5",
                 "pyneb~=1.1.28",
                 "tomlkit~=0.14.0",
                 "bokeh==3.9.0",

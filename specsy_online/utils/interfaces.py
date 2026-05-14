@@ -1,5 +1,6 @@
 import streamlit as st
 from os import cpu_count
+from time import time
 from streamlit import session_state as s_state,secrets
 import streamlit_authenticator as stauth
 from streamlit_gsheets import GSheetsConnection
@@ -541,9 +542,10 @@ def fitcfg_band_settings(def_linelist, default_particle_list, def_df, wave_rest)
     # Section to generate examples
     st.markdown(f'#### Configuration entries')
 
-    # Add default settings
+    # Make line groups from the selected excluded lines
     st.markdown(f'Generate a list of line groups from the selected particles')
     in_df = def_df if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])]
+
     st.button(label="Predict merged|blended line groups", on_click=prepare_default, args=(wave_rest, in_df), use_container_width=True)
 
     # Kinematic components row
@@ -618,7 +620,21 @@ def compute_bands():
 
     # Fit config mode
     with tab_fit_cfg:
-        fitcfg_band_settings(def_linelist, default_particle_list, def_df, spec.wave_rest.data)
+
+        preselection_df = spec.retrieve.lines_frame(line_list=s_state['lines_selected'] or None,
+                                                  particle_list=s_state['ion_list'] or None,
+                                                  vacuum_waves=s_state['vacuum_check'],
+                                                  automatic_grouping=False,
+                                                  rejected_lines=s_state['out_lines'] or None,
+                                                  adjust_central_band=s_state['adj_central'],
+                                                  band_vsigma=s_state['bands_velocity'],
+                                                  n_sigma=s_state['n_sigma'],
+                                                  instrumental_correction=s_state['instr_corr'],
+                                                  update_latex=False)
+
+        # fitcfg_band_settings(def_linelist, default_particle_list, def_df, spec.wave_rest.data)
+        fitcfg_band_settings(list(preselection_df.index.sort_values().to_list()),
+                             list(preselection_df.particle.unique()), preselection_df, spec.wave_rest.data)
 
     # Load from file
     with tab_upload:
@@ -1087,7 +1103,7 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
     # Formating for the labels
     st.markdown(REGION_TAGS_STYLE, unsafe_allow_html=True)
 
-    col_reg, col_kinem, col_norm, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='medium')
+    col_reg, col_kinem, col_merged, _ = st.columns([0.25, 0.25, 0.25, 0.25], gap='medium')
 
     # Number of regions selectbox
     with col_reg:
@@ -1097,6 +1113,11 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
     with col_kinem:
         st.selectbox(label="Kinematic component", options=[0], key="kinem_order_specsy", help="Normalization label.")
 
+    with col_merged:
+        st.space(20)
+        st.toggle(label='Exclude merged', value=True, key='merged_toggle', help='The line selection will automatically '
+                                                                              'exclude merged lines from the selection')
+
 
     # ── Session-state reset when n_regions changes ────────────────────────────────
     _sentinel_key = f"__sentinel_{n_regions}__"
@@ -1105,8 +1126,6 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
             if k.startswith("region_"):
                 del st.session_state[k]
         st.session_state[_sentinel_key] = True
-
-    # st.markdown("<br>", unsafe_allow_html=True)
 
     region_labels = REGION_LABELS[n_regions]
 
@@ -1201,13 +1220,15 @@ def make_sampling_callback():
             progress_bar.progress(progress,
                                   text=f"Chain {draw.chain + 1}/{s_state['chains_pymc']} | draw {chain_draws[draw.chain]}/{s_state['draws_pymc']}")
 
+    start_time = time()
     s_state['nebula'].infer.direct_method.run(draws=s_state['draws_pymc'], tune=s_state['tune_pymc'],
                                              target_accept=0.8, chains=s_state['chains_pymc'],
                                              cores=s_state['cores_pymc'], callback=sampling_callback,
                                              nuts_sampler=s_state['sampler_pymc'])
+    elapsed = time() - start_time
+    timing = f'{elapsed / 60:.1f} minutes' if elapsed >= 60 else f'{elapsed:.1f} seconds'
 
-
-    progress_bar.progress(1.0, text="Sampling complete!")
+    progress_bar.progress(1.0, text=f"Sampling complete in {timing}")
 
     st.balloons()
 

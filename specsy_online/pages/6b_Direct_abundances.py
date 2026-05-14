@@ -56,8 +56,8 @@ if st.button("Prepare model"):
 
     # Clear previous values
     sstate['nebula'] = None
-    sstate['structure_dict'] = None
     sstate['trace'] = None
+    sstate['structure_dict'] = None
 
     if uploaded_file is None:
         st_warnings = structure_manager(REGION_LABELS, sstate.get('lines_df'), norm_line='H1_4861A')
@@ -80,10 +80,12 @@ if st.button("Prepare model"):
                                                R_V=sstate['Rv_dm'],
                                                law=sstate['rLaw_dm'],
                                                norm_line=sstate['norm_line_dm'],
-                                               kinematic_component=sstate.get('kinem_order_specsy', 0))
-
+                                               kinematic_component=sstate.get('kinem_order_specsy', 0),
+                                               exclude_merged=sstate['merged_toggle'])
+        # st.write(sstate['merged_toggle'])
         # Check the data is valid
         message = obj.infer.direct_method._review_inputs(return_message=True)
+        # message = []
 
         if len(message) == 0:
             sstate['nebula'] = obj
@@ -120,10 +122,10 @@ if sstate.get('nebula') is not None:
             # Run the sampler
             sstate['trace'] = None
             make_sampling_callback()
+            # st.json(sstate['nebula'].infer.direct_method.inputs.inputs_merged)
 
             # Save the trace
             sstate['trace'] = sstate['nebula'].infer.direct_method.trace
-
 
 if sstate.get('trace') is not None:
     st.subheader('Results')

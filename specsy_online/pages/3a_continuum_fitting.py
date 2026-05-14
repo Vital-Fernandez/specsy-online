@@ -6,17 +6,6 @@ from specsy_online.utils.plots import bokeh_spectrum
 from numpy import ndarray
 
 
-# def widget_text_to_list(str_list, id_types=int):
-#
-#     if str_list is not None:
-#         output = str_list.replace('\n', '')
-#         output = output.replace(' ', '')
-#         output = array(output.split(',')).astype(id_types)
-#     else:
-#         output = None
-#
-#     return output
-
 def _is_float(s: str) -> bool:
     try:
         float(s)
@@ -120,8 +109,9 @@ if spec is not None:
             # Make sure entries have the right format
             spec.fit.continuum(degree_list=order_list, emis_threshold=emis_threshold, smooth_scale=smooth_scale)
 
-            # Display the spectrum
-            st.markdown("***")
+        # Display the spectrum
+        st.markdown("***")
+        if spec.cont is not None:
             bokeh_spectrum(spec_key='spec', default_components=False, default_show_fits=False,
                            default_show_cont=True if spec.cont is not None else False)
 

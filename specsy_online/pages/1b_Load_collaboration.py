@@ -12,52 +12,56 @@ from streamlit_authenticator import Authenticate
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 # Authenticate the user
-authenticator = Authenticate(secrets.collaborations.credentials.to_dict(),
-                             cookie_name=secrets.cookie.name,
-                             cookie_key=secrets.cookie.key,
-                             cookie_expiry_days=secrets.cookie.expiry_days)
+if secrets.get('collaborations') is not None:
 
-if s_state.get('authentication_status'):
-    authenticator.logout(button_name='Collaboration logout', location='sidebar')
+    authenticator = Authenticate(secrets.collaborations.credentials.to_dict(),
+                                 cookie_name=secrets.cookie.name,
+                                 cookie_key=secrets.cookie.key,
+                                 cookie_expiry_days=secrets.cookie.expiry_days)
 
-# Sidebar information
-sidebar_widgets()
+    if s_state.get('authentication_status'):
+        authenticator.logout(button_name='Collaboration logout', location='sidebar')
 
-# Selection screen for sample
-st.title(f'Virtual observatory')
-st.space()
-st.write("You may select a survey from the selection box below. Please note that some research projects may require "
-         "authentication — please contact the project's Principal Investigator (P.I.) for access.")
-col_A, col_B = st.columns([0.25, 0.75], gap='large')
-st.space()
+    # Sidebar information
+    sidebar_widgets()
 
-# Select the survey
-with col_A:
-    index = 0 if st.session_state.get('survey_selection') is None else SURVEY_LIST.index(st.session_state['survey_selection'])
-    survey = st.selectbox('Survey selection', options=SURVEY_LIST, index=index, key='survey_selection',
-                          on_change=set_survey_user, args=('survey_selection', authenticator))
+    # Selection screen for sample
+    st.title(f'Virtual observatory')
+    st.space()
+    st.write("You may select a survey from the selection box below. Please note that some research projects may require "
+             "authentication — please contact the project's Principal Investigator (P.I.) for access.")
+    col_A, col_B = st.columns([0.25, 0.75], gap='large')
+    st.space()
 
-match survey:
+    # Select the survey
+    with col_A:
+        index = 0 if st.session_state.get('survey_selection') is None else SURVEY_LIST.index(st.session_state['survey_selection'])
+        survey = st.selectbox('Survey selection', options=SURVEY_LIST, index=index, key='survey_selection',
+                              on_change=set_survey_user, args=('survey_selection', authenticator))
 
-    case 'CEERS':
-        survey_selection(survey.lower())
+    match survey:
 
-    case 'CAPERS':
-        authenticator.login(location='main', fields={'Form name': 'CAPERS'})
-        if s_state.get('authentication_status'):
-            if st.session_state.get("name") == 'capers':
-                survey_selection(survey.lower())
-            else:
-                st.write(f'Incorrect credentials for {survey} sample. Please logout or change survey selection.')
+        case 'CEERS':
+            survey_selection(survey.lower())
 
-    case 'PID17515':
-        authenticator.login(location='main', fields={'Form name': 'Login LyC leakers (COS)'})
-        if s_state.get('authentication_status'):
-            if st.session_state.get("name") == 'PID17515':
-                lyc_cos_selection()
-            else:
-                st.write(f'Incorrect credentials for {survey} sample. Please logout or change survey selection.')
+        case 'CAPERS':
+            authenticator.login(location='main', fields={'Form name': 'CAPERS'})
+            if s_state.get('authentication_status'):
+                if st.session_state.get("name") == 'capers':
+                    survey_selection(survey.lower())
+                else:
+                    st.write(f'Incorrect credentials for {survey} sample. Please logout or change survey selection.')
 
-    case _:
-        st.write('Project is not recognized')
+        case 'PID17515':
+            authenticator.login(location='main', fields={'Form name': 'Login LyC leakers (COS)'})
+            if s_state.get('authentication_status'):
+                if st.session_state.get("name") == 'PID17515':
+                    lyc_cos_selection()
+                else:
+                    st.write(f'Incorrect credentials for {survey} sample. Please logout or change survey selection.')
 
+        case _:
+            st.write('Project is not recognized')
+
+else:
+    st.warning('The current platform does not have access to the collaborations database')

@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit import session_state as s_state
-
+from numpy import savetxt, column_stack
+from io import StringIO
 from specsy_online.utils.input_output import save_state
 from specsy_online.utils.sidebar import sidebar_widgets
 from specsy_online.utils.plots import bokeh_spectrum
@@ -57,11 +58,29 @@ if s_state['spec'] is not None:
             # Save the spec
             save_state('spec', spec)
 
+
+        if spec.infer.pred_arr is not None:
+
+            def arrays_to_txt(prediction_arr, confidence_arr):
+                buffer = StringIO()
+                savetxt(buffer, column_stack([prediction_arr, confidence_arr]),
+                           header="prediction_arr,confidence_arr", comments="", delimiter=",", fmt="%d")
+                return buffer.getvalue()
+
+            st.download_button(label="Download predictions", data=arrays_to_txt(spec.infer.pred_arr, spec.infer.conf_arr),
+                               file_name="predictions.txt", mime="text/plain", icon=":material/download:")
+
     # Show the plot
     st.write('***')
     if spec.infer.pred_arr is not None:
         bokeh_spectrum('spec', default_components=True, default_show_fits=False)
 
 else:
-    st.markdown(f'Please load an observation.')
+    st.markdown(f'### No observation available')
+
+    st.page_link("pages/1a_Load_spectrum.py", label='Please load an spectrum :yellow[**(link)**]',
+                 icon=":material/upload:")
+    st.page_link("pages/1a_Load_spectrum.py",
+                 label='or get an observation from the virtual observatory page :yellow[**(link)**]',
+                 icon=":material/archive:")
 

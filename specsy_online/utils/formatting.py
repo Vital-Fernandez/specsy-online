@@ -30,7 +30,7 @@ REGION_LABELS = {1: ["low"],
                  3: ["low", "med", "high"],
                  4: ["low", "med", "high", "vhigh"]}
 
-COLUMNS_STRUCT = ['line_flux', 'line_flux_err', 'wavelength', 'region', 'particle', 'norm_line', 'f_lambda',
+COLUMNS_STRUCT = ['line_flux', 'line_flux_err', 'region', 'particle', 'merged', 'norm_line', 'f_lambda',
                   'temp', 'den', 'eq_temp', 'eq_den', 'eq_flux']
 
 

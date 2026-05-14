@@ -14,7 +14,13 @@ st.markdown("Use the widgets below to build a line bands table for your observat
 
 # Check file has been uploaded
 if s_state['spec'] is None:
-    st.markdown(f'Please load a spectrum.')
+    st.markdown(f'### No observation available')
+
+    st.page_link("pages/1a_Load_spectrum.py", label='Please load an spectrum :yellow[**(link)**]',
+                 icon=":material/upload:")
+    st.page_link("pages/1a_Load_spectrum.py",
+                 label='or get an observation from the virtual observatory page :yellow[**(link)**]',
+                 icon=":material/archive:")
 
 # Use the observation to create reference bands
 else:

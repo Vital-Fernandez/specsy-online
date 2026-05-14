@@ -315,7 +315,7 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
     # Load the object
     spec = Spectrum.from_file(input_file, instrument, **spec_params)
 
-    if (wave_units_out is not None) and (flux_units_out is not None):
+    if (wave_units_out is not None) or (flux_units_out is not None):
         if spec.units_flux.physical_type != 'dimensionless':
             spec.unit_conversion(wave_units_out, flux_units_out)
         else:
