@@ -27,6 +27,37 @@ st.markdown("""
                 </p>
                 """, unsafe_allow_html=True)
 
+# Installation
+with st.expander("Offline installation", icon=":material/download:"):
+    st.markdown(
+        """
+        This command will install the main [Aspect](https://github.com/Vital-Fernandez/aspect), 
+        [LiMe](https://github.com/Vital-Fernandez/lime), and 
+        [Specsy](https://github.com/Vital-Fernandez/specsy) libraries alongside their main dependencies.
+        """
+    )
+    st.code("pip install specsy-online", language="bash")
+
+    st.markdown(
+        """
+        Depending on the operating system, the selection of the PyMC sampler backend for the chemical 
+        analysis may have a dramatic impact on the compilation speed of the sampler.  
+        It is recommended to use conda to create an environment with the recommended backends installation and test for
+        the best option:
+        """
+    )
+    st.code(
+        """
+conda create -c conda-forge -n specsy_online python=3.13 nutpie pymc numba numpyro blackjax
+conda activate specsy_online
+pip install specsy-online
+        """,
+        language="bash"
+    )
+
+    st.markdown("To upgrade to the latest version:")
+    st.code("pip install --upgrade specsy-online", language="bash")
+
 # References
 with st.expander("Tools references", icon=":material/handyman:"):
     st.markdown(

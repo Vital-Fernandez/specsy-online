@@ -11,8 +11,15 @@ from streamlit_authenticator import Authenticate
 # Page configuration
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
+try:
+    has_collaborations = st.secrets.get('collaborations') is not None
+except Exception:
+    has_collaborations = False
+
+
+
 # Authenticate the user
-if secrets.get('collaborations') is not None:
+if has_collaborations:
 
     authenticator = Authenticate(secrets.collaborations.credentials.to_dict(),
                                  cookie_name=secrets.cookie.name,
