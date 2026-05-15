@@ -2,7 +2,7 @@
 aspect-stable>=0.7.dev3
 lime-stable[full]>=2.2.dev6
 innate-stable>=0.2.2
-specsy[tensors]>=0.9.dev5
+specsy[tensors]>=0.9.dev6
 pyneb~=1.1.28
 bokeh==3.9.0
 tomlkit~=0.14.0

@@ -2,7 +2,8 @@ import streamlit as st
 from streamlit import session_state as s_state
 from specsy_online.utils.sidebar import sidebar_widgets
 from specsy_online.utils.plots import bokeh_spectrum
-
+from numpy import savetxt, column_stack
+from io import StringIO
 from numpy import ndarray
 
 
@@ -61,7 +62,7 @@ if spec is not None:
 
     st.markdown(f'### The widgets below can be used to fit the spectrum continuum using a polynomial.')
 
-    with st.form('aspect_form', border=False, enter_to_submit=False, clear_on_submit=False):
+    with st.form('cont_fut', border=False, enter_to_submit=False, clear_on_submit=False):
 
         # First set of parameters
         col_listA = st.columns([0.25, 0.25, 0.25, 0.25], gap='small')
@@ -109,16 +110,22 @@ if spec is not None:
             # Make sure entries have the right format
             spec.fit.continuum(degree_list=order_list, emis_threshold=emis_threshold, smooth_scale=smooth_scale)
 
-        # Display the spectrum
-        st.markdown("***")
-        if spec.cont is not None:
-            bokeh_spectrum(spec_key='spec', default_components=False, default_show_fits=False,
-                           default_show_cont=True if spec.cont is not None else False)
+    # Display the spectrum
+    if spec.cont is not None:
+        bokeh_spectrum(spec_key='spec', default_components=False, default_show_fits=False,
+                       default_show_cont=True if spec.cont is not None else False)
 
+
+        def arrays_to_txt(wave_arr, flux_arr):
+            buffer = StringIO()
+            savetxt(buffer, column_stack([wave_arr, flux_arr]), header="wavelength,flux", comments="", delimiter=",")
+            return buffer.getvalue()
+
+
+        st.download_button(label="Download continuum", data=arrays_to_txt(spec.wave.data, spec.cont),
+                           file_name="continuum_fit.txt", mime="text/plain", icon=":material/download:")
 
 else:
-
     st.markdown(f'### No observation available')
-
     st.page_link("pages/1a_Load_spectrum.py", label='Please load an spectrum :yellow[**(link)**]', icon=":material/upload:")
     st.page_link("pages/1a_Load_spectrum.py", label='or get an observation from the virtual observatory page :yellow[**(link)**]', icon=":material/archive:")
