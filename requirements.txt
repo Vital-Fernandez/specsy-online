@@ -1,13 +1,11 @@
 -e .
-aspect-stable>=0.7.dev3
-lime-stable[full]>=2.2.dev6
+aspect-stable~=0.8
+lime-stable[full]~=2.4.1
 innate-stable>=0.2.2
-specsy[tensors]>=0.9.dev6
-pyneb~=1.1.28
+specsy[full]~=0.9.0
 bokeh==3.9.0
-tomlkit~=0.14.0
-streamlit==1.55.0
+streamlit==1.58.0
 streamlit-bokeh==3.9.0
 streamlit-authenticator==0.4.2
 st-gsheets-connection~=0.1
-google-api-python-client~=2.187.0
+google-api-python-client~=2.198.0
