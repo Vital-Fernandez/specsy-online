@@ -3,7 +3,6 @@ import streamlit_authenticator as stauth
 import streamlit.components.v1 as components
 
 from streamlit import session_state as s_state, secrets
-from streamlit_gsheets import GSheetsConnection
 
 
 from os import cpu_count
@@ -13,8 +12,7 @@ from importlib import metadata
 from PIL import Image
 from toml import loads
 from pandas import DataFrame, isnull
-from arviz import from_netcdf
-from lime import load_frame, Spectrum, show_instrument_cfg, show_profile_parameters
+from lime import load_frame, Spectrum, show_instrument_cfg
 from lime.io import parse_lime_cfg
 from innate import DataSet, load_dataset
 from google.oauth2.service_account import Credentials
@@ -22,7 +20,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from io import BytesIO, StringIO
 from numpy import array
-from typing import Union, List, Dict
 import base64
 import json
 import tomlkit
@@ -109,19 +106,47 @@ def widget_save_state(param):
     return
 
 
-def set_survey_user(param, auth):
 
-    # Clear the previous data
-    clear_obj_data()
+#
+# def authenticate_method(credential_dict=None):
+#
+#     if credential_dict is None:
+#         credential_dict = secrets.collaborations.credentials.to_dict()
+#
+#     return stauth.Authenticate(credential_dict, cookie_name=secrets.cookie.name, cookie_key=secrets.cookie.key,
+#                                cookie_expiry_days=secrets.cookie.expiry_days)
+#
+#
+# def restore_authentication():
+#
+#     # Recover the login from the re-authentication cookie on pages without a login form
+#     if st.secrets.get('collaborations', False):
+#         if s_state.get('authentication_status') is None:
+#             authenticator = authenticate_method()
+#             authenticator.login(location='unrendered')
+#
+#     return
 
-    # Holder for the survey
-    s_state[f'{param}_hold'] = s_state[f'{param}']
+def get_authenticator():
 
-    # Logout from collaboration
-    if st.session_state['authentication_status']:
-        auth.logout(location='unrendered')
+    if s_state.get('authenticator') is None:
+        s_state['authenticator'] = stauth.Authenticate(secrets.collaborations.credentials.to_dict(),
+                                                       cookie_name=secrets.cookie.name,
+                                                       cookie_key=secrets.cookie.key,
+                                                       cookie_expiry_days=secrets.cookie.expiry_days)
+
+    return s_state['authenticator']
+
+
+def restore_authentication():
+
+    # Recover the login from the re-authentication cookie on pages without a login form
+    if st.secrets.get('collaborations', False):
+        if s_state.get('authentication_status') is None:
+            get_authenticator().login(location='unrendered')
 
     return
+
 
 
 def clear_inputs_state(reset_defaults=True):
@@ -146,38 +171,6 @@ def clear_obj_data():
         s_state[f'{item}_hold'] = None
 
     return
-
-
-def get_user_parameters(username: str, params: Union[str, List[str]]) -> Union[None, Dict[str, str], str]:
-
-    """
-    Retrieve one or more user-specific parameters from Streamlit secrets using the username.
-
-    Parameters
-    ----------
-    username : str
-        The key in `secrets.collaborations.credentials.usernames`.
-
-    params : str or list of str
-        One or more parameter names to retrieve.
-
-    Returns
-    -------
-    dict or str or None
-        - If one parameter is requested: returns a string or None.
-        - If multiple parameters are requested: returns a dict {param: value}.
-        - Returns None if username not found or secrets structure is invalid.
-
-    """
-
-    user_data = st.secrets.collaborations.credentials.usernames.get(username)
-    if not user_data:
-        return None
-
-    if isinstance(params, str):
-        return user_data.get(params)
-    else:
-        return {param: user_data.get(param) for param in params}
 
 
 def parse_toml_input(toml_text):
@@ -207,27 +200,6 @@ def on_toml_change():
         except Exception as e:
             st.error(f"Unexpected error parsing configuration: {e}")
 
-@st.cache_resource
-def read_collaboration_file_log(collaboration_name, idx_list):
-
-    conn = st.connection(collaboration_name, type=GSheetsConnection)
-    sheet_name = get_user_parameters(collaboration_name, 'file_sheet')
-    df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=idx_list, header=0, sep=',')
-    df.index.names = idx_list
-
-    return df
-
-
-@st.cache_resource
-def read_collaboration_flux_log(collaboration_name, index_list):
-
-    conn = st.connection(collaboration_name, type=GSheetsConnection)
-    sheet_name = get_user_parameters(collaboration_name, 'flux_sheet')
-    df = conn.read(spreadsheet=sheet_name, ttl=None, index_col=index_list, header=0, sep=',')
-    df.index.names = index_list
-
-    return df
-
 
 @st.cache_resource
 def load_emiss_grids(fname):
@@ -240,13 +212,16 @@ def load_logo(file_address=LOGO_PATH):
 
 
 @st.cache_data
-def get_versions(packages: dict[str, str] | None = None) -> dict[str, str]:
+def get_versions(packages: dict[str, str] | None = None) -> dict[str, str | None]:
     if packages is None:
         packages = PACKAGES_dependencies
-    return {
-        label: metadata.version(pkg)
-        for label, pkg in packages.items()
-    }
+    versions = {}
+    for label, pkg in packages.items():
+        try:
+            versions[label] = metadata.version(pkg)
+        except metadata.PackageNotFoundError:
+            versions[label] = None
+    return versions
 
 @st.cache_data
 def get_sampler_backends() -> dict[str, str | None]:
@@ -284,6 +259,7 @@ def get_device_info() -> dict:
         info["cuda_available"] = False
 
     return info
+
 
 @st.cache_data
 def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=None, units_flux_in=None,
@@ -323,6 +299,12 @@ def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=Non
 
     return spec
 
+
+@st.cache_data
+def spectrum_to_txt(_spec, line_label=None, split_components=False):
+    buffer = StringIO()
+    _spec.save_spectrum(fname=buffer, line_label=line_label, split_components=split_components)
+    return buffer.getvalue()
 
 @st.cache_data
 def load_infer_data(file_address):
@@ -387,15 +369,15 @@ def convert_for_download(df):
     return df.to_csv(index=False).encode("utf-8")
 
 
-def user_logging():
-
-    credentials = secrets.collaborations.credentials.to_dict()
-
-    authenticator = stauth.Authenticate(credentials, cookie_name='CAPERS_specsy', cookie_key='capersKey', cookie_expiry_days=60)
-    authenticator.login(location='main')
-
-    return
-
+# def user_logging():
+#
+#     credentials = secrets.collaborations.credentials.to_dict()
+#
+#     authenticator = stauth.Authenticate(credentials, cookie_name='CAPERS_specsy', cookie_key='capersKey', cookie_expiry_days=60)
+#     authenticator.login(location='main')
+#
+#     return
+#
 
 def declare_atomic_data():
 
@@ -450,49 +432,119 @@ def gdrive_service(collab):
 
     service = build(serviceName='drive',
                     version='v3',
-                    credentials=Credentials.from_service_account_info(secrets.connections.capers.to_dict(),
+                    credentials=Credentials.from_service_account_info(secrets.connections.gdrive.to_dict(),
                                                                       scopes=['https://www.googleapis.com/auth/drive']))
 
     return service
 
+@st.cache_data(show_spinner=False)
+def resolve_folder_id(_service, folder_path, starting_parent_id):
 
-def download_from_path(service, file_path, starting_parent_id='root'):
-
-    path_parts = file_path.split('/')
     parent_id = starting_parent_id
-    file_bytes = None
-
-    # Resolve the folder path
-    for folder_name in path_parts[:-1]:
-        # st.write(f"🔍 Looking for '{folder_name}' inside '{parent_id}'...")
-        query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{parent_id}' in parents and trashed = false"
-        fields = "files(id, name)"
-        response = service.files().list(q=query, fields=fields, supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+    for folder_name in folder_path.split('/'):
+        query = (f"name = '{folder_name}' and "
+                 f"mimeType = 'application/vnd.google-apps.folder' and "
+                 f"'{parent_id}' in parents and trashed = false")
+        response = _service.files().list(q=query, fields="files(id, name)",
+                                         supportsAllDrives=True,
+                                         includeItemsFromAllDrives=True).execute()
         folders = response.get('files', [])
-
         if not folders:
-            st.write(f"❌ Folder '{folder_name}' not found under '{parent_id}'")
-            st.write(f'Hay {path_parts}')
-            return file_bytes
-
+            # Diagnose: show what actually exists at this level
+            listing = _service.files().list(q=f"'{parent_id}' in parents and trashed = false",
+                                            fields="files(name, mimeType)",
+                                            supportsAllDrives=True,
+                                            includeItemsFromAllDrives=True).execute()
+            names = [f['name'] for f in listing.get('files', [])]
+            st.error(f"Folder **{folder_name}** not found. "
+                     f"Contents at this level: {names}")
+            return None
         parent_id = folders[0]['id']
 
-    # Locate the file in the folder
-    if parent_id:
-        query = f"name = '{path_parts[-1]}' and '{parent_id}' in parents and trashed = false"
-        response = service.files().list(q=query, fields="files(id, name, webViewLink)", supportsAllDrives=True,
-                                        includeItemsFromAllDrives=True).execute()
-        files = response.get('files', [])
-        file_obj = files[0] if files else None
+    return parent_id
 
-        if file_obj:
-            file_bytes = download_binary_file(service, file_obj['id'])
-        else:
-            st.write(f"❌ File ({path_parts[-1]}) not found in the target folder ({parent_id}).")
-    else:
-        st.write(f"❌ Could not resolve the folder path ({file_path}).")
 
-    return file_bytes
+def download_from_path(service,  survey, file_path):
+
+    # Id from the survey
+    starting_parent_id = secrets.collaborations.credentials.usernames[survey]['root_id']
+
+    # Sanity checks on the path itself drop empty segments from '//' or trailing '/'
+    path_parts = [p for p in file_path.split('/') if p]
+    file_name = path_parts[-1]
+    folder_parts = path_parts[:-1]
+
+    if any('.fits' in p for p in folder_parts):
+        st.error(f"Malformed path (a file name appears as a folder): {file_path}")
+        return None
+
+    if path_parts.count(file_name) > 1:
+        st.error(f"Malformed path (duplicated segments): {file_path}")
+        return None
+
+    # Resolve the containing folder (cached across calls)
+    folder_id = resolve_folder_id(service, '/'.join(folder_parts), starting_parent_id)
+    if folder_id is None:
+        return None
+
+    # Locate the file
+    query = f"name = '{file_name}' and '{folder_id}' in parents and trashed = false"
+    response = service.files().list(q=query, fields="files(id, name)",
+                                    supportsAllDrives=True,
+                                    includeItemsFromAllDrives=True).execute()
+
+    files = response.get('files', [])
+    if not files:
+        st.error(f"File **{file_name}** not found in folder {'/'.join(folder_parts)}")
+        return None
+
+    return download_binary_file(service, files[0]['id'])
+
+
+# def download_from_path(service, file_path, starting_parent_id='root'):
+#
+#     path_parts = file_path.split('/')
+#     parent_id = starting_parent_id
+#     file_bytes = None
+#     st.write(file_path)
+#     resp = service.files().list(q=f"'{parent_id}' in parents and trashed = false",
+#                                 fields="files(id, name, mimeType)",
+#                                 supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+#     st.write('parent_id', parent_id)
+#     st.write('file_path', file_path)
+#     st.write(resp['files'])
+#
+#     # Resolve the folder path
+#     for folder_name in path_parts[:-1]:
+#         # st.write(f"🔍 Looking for '{folder_name}' inside '{parent_id}'...")
+#         query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{parent_id}' in parents and trashed = false"
+#         fields = "files(id, name)"
+#         response = service.files().list(q=query, fields=fields, supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
+#         folders = response.get('files', [])
+#
+#         if not folders:
+#             st.write(f"❌ Folder '{folder_name}' not found under '{parent_id}'")
+#             st.write(f'Hay {path_parts}')
+#             return file_bytes
+#
+#         parent_id = folders[0]['id']
+#
+#     # Locate the file in the folder
+#     if parent_id:
+#         query = f"name = '{path_parts[-1]}' and '{parent_id}' in parents and trashed = false"
+#         response = service.files().list(q=query, fields="files(id, name, webViewLink)", supportsAllDrives=True,
+#                                         includeItemsFromAllDrives=True).execute()
+#         files = response.get('files', [])
+#         file_obj = files[0] if files else None
+#
+#         if file_obj:
+#             file_bytes = download_binary_file(service, file_obj['id'])
+#         else:
+#             st.write(f"❌ File ({path_parts[-1]}) not found in the target folder ({parent_id}).")
+#     else:
+#         st.write(f"❌ Could not resolve the folder path ({file_path}).")
+#
+#     return file_bytes
 
 
 def resolve_drive_path(service, folder_path, starting_parent_id='root'):

@@ -3,8 +3,9 @@ import streamlit as st
 from pathlib import Path
 from numpy import sort, loadtxt
 from streamlit import session_state as s_state, secrets
-from specsy_online.utils.input_output import read_collaboration_file_log, clear_obj_data
+from specsy_online.utils.input_output import clear_obj_data
 from specsy_online.utils.input_output import save_state, gdrive_service, download_from_path, load_spectrum
+from specsy_online.pages.collaborations.observatory_tools import read_collaboration_file_log
 from specsy_online.utils.interfaces import samples_widgets_selection, indexing_sheets, unit_conversion_inputs
 from specsy_online.utils.plots import LyC_bokeh_spectrum
 
@@ -38,7 +39,7 @@ def lyc_cos_selection():
 
     # Cropped df
     df_selection = files_df.loc[idcs_selection]
-    msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{df_selection.index.shape[0]} objects</span> '
+    msg = (f'The current selection has <span style="color:#E1AD01;font-weight:bold;">{df_selection.index.shape[0]} observations</span> '
            f' use the menus below to load the spectra from an individual source.')
     st.write(msg, unsafe_allow_html=True)
 

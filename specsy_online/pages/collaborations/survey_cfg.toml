@@ -1,0 +1,50 @@
+[ceers]
+intro = """These observations belong to the **CEERS (The Cosmic Evolution Early Release Science Survey**. \
+           Steven Finkelstein at University of Texas at Austin is the P.I. of this proposal (NOI #135).\n\n \
+           This widgets below can be used to constrain the sample. Please visit \
+           [https://ceers.github.io/](https://ceers.github.io/) for more information on the project."""
+
+redshift_label = "z_best"
+disp_list = ["prism", "comb-mgrat"]
+fits_extension = ["prism_x1d", "prism_x1d-masked", "prism_x1d-optext", "prism_x1d-optext-masked",
+                  "comb-mgrat_x1d", "comb-mgrat_x1d-masked", "comb-mgrat_x1d-optext", "comb-mgrat_x1d-optext-masked"]
+logo_path = "resources/images/CEERS_white.png"
+column_order = ["MPT_number", "ra", "dec", "disp", "z_med", "z_UNICORN", "z_tier", "z_aspect_key",
+                "z_manual", "z_gaussian", "Notes", "s2d", "x1d", "optext"]
+file_sample_headers = ["sample", "id", "pointing"]
+flux_sample_headers = ["sample", "id", "file", "line"]
+file_header = "file_path"
+root_folder = "CEERS"
+
+[capers]
+intro = """These observations belong to the CANDELS-Area Prism Epoch of Reionization Survey. \
+            Mark Dickinson at NOIRLab (AZ) is the P.I. of this proposal with reference JWST-GO-6368. \
+            Please contact the P.I. before using this dataset.
+            This widgets below can be used to constrain the sample. Please check the CAPERS README file for \
+            the parameters description."""
+
+redshift_label = "z_UNICORN"
+fits_extension = ["optext", "x1d"]
+logo_path = "resources/images/Logo_CAPERS_text_RGB.png"
+file_sample_headers = ["sample", "id", "pointing"]
+flux_sample_headers = ["sample", "id", "file", "line"]
+column_order = ["MPT_number", "ra", "dec", "disp", "z_med", "z_UNICORN", "z_tier", "z_aspect_key",
+                "z_manual", "z_gaussian", "Notes", "s2d", "x1d", "optext"]
+file_header = "file_path"
+root_folder = "CAPERS"
+
+[lzlcs_miri]
+intro = """These observations belong to the MIRI Low-redshift Lyman Continuum Survey (LzLCS). \
+           Sophia R. Flury and Anne Jaskot are P.I.s of the JWST-GO-05554 proposal. \
+           Please contact the P.I. before using this dataset.\n\n \
+           The widgets below can be used to constrain the sample. \
+           Please check the reductions README file description."""
+redshift_label = "redshift"
+name_display = "LzLCS MIRI survey"
+file_sample_headers = ["id", "product", "channel", "band", "aperture", "filter"]
+flux_sample_headers = ["id", "file", "line"]
+column_order = ["alias", "redshift", "path"]
+fits_extension = ["path"]
+readme = true
+file_header = "path"
+root_folder = "LZLCS_MIRI/release/data"

@@ -1,13 +1,14 @@
-import numpy as np
 from matplotlib import pyplot as plt
 from bokeh.plotting import figure
 from bokeh.models import LinearColorMapper
 
 from lime.plotting.format import theme as theme_lime
-from specsy.plotting.plots import theme as theme_specsy, plot_traces, plot_corner_matrix, plot_flux_grid, extinction_gradient
-from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
-from .input_output import load_infer_data
 from innate.plotting import theme as theme_innate
+from specsy.plotting.plots import theme as theme_specsy
+from specsy.plotting.plots import plot_corner_matrix, plot_flux_grid, extinction_gradient
+from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
+from specsy.plotting.arviz_functions import plot_fitted_fluxes, plot_traces, plot_fitted_params, plot_fitted_pairs, plot_prior_posterior
+from .input_output import load_infer_data
 import streamlit as st
 from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
@@ -15,17 +16,76 @@ from astropy.visualization import ZScaleInterval
 from arviz import summary
 from bokeh.models import ColumnDataSource, BoxAnnotation
 
-
 Z_FUNC_CMAP = ZScaleInterval()
 
 theme_lime.set_style('dark')
-theme_specsy.set_style('dark', library='bokeh')
 theme_innate.set_style('dark')
+theme_specsy.set_style('dark', library='bokeh')
 
 
 DEFAULT_FIG_CFG = {'width':450, 'height':250, 'active_scroll': None,
                    "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
                    "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}}
+
+# Styled and documented headers for pymc symmary
+PYMC_SUMMARY_COLUMN_CONFIG = {
+    "_index": st.column_config.TextColumn(
+        "Parameter",
+        help="Model parameter from the MCMC sampling",
+    ),
+    "mean": st.column_config.NumberColumn(
+        "Mean",
+        help="Posterior mean of the parameter",
+    ),
+    "sd": st.column_config.NumberColumn(
+        "Std. dev.",
+        help="Posterior standard deviation",
+    ),
+    "eti89_lb": st.column_config.NumberColumn(
+        "89% ETI (lower)",
+        help="Lower bound of the 89% equal-tailed credible interval",
+    ),
+    "eti89_ub": st.column_config.NumberColumn(
+        "89% ETI (upper)",
+        help="Upper bound of the 89% equal-tailed credible interval",
+    ),
+    "ess_bulk": st.column_config.NumberColumn(
+        "ESS (bulk)",
+        help="Effective sample size: the number of independent samples the "
+             "chain is equivalent to for estimating central quantities like "
+             "the mean and median. MCMC samples are correlated, so this is "
+             "smaller than the raw number of draws. Values above ~400 are "
+             "generally considered reliable.",
+    ),
+    "ess_tail": st.column_config.NumberColumn(
+        "ESS (tail)",
+        help="Same idea as bulk ESS, but computed for the 5% and 95% "
+             "quantiles. It tells you whether the extremes of the posterior "
+             "are well sampled — a low value means the credible interval "
+             "bounds are uncertain even if the mean is fine.",
+    ),
+    "r_hat": st.column_config.NumberColumn(
+        "R̂",
+        help="Gelman-Rubin convergence diagnostic; values ≤ 1.01 indicate "
+             "the chains have converged",
+        format="%.3f",
+    ),
+    "mcse_mean": st.column_config.NumberColumn(
+        "MCSE (mean)",
+        help="Monte Carlo standard error of the posterior mean",
+    ),
+    "mcse_sd": st.column_config.NumberColumn(
+        "MCSE (sd)",
+        help="Monte Carlo standard error of the posterior standard deviation",
+    ),
+}
+
+
+def prioritized_default(options, priority_prefixes=('temp', 'den'), n_max=7):
+    # Priority entries first, then the rest, capped at n_max
+    priority = [opt for opt in options if opt.startswith(priority_prefixes)]
+    others = [opt for opt in options if not opt.startswith(priority_prefixes)]
+    return (priority + others)[:n_max]
 
 
 def df_to_mathjax_html(df):
@@ -265,37 +325,87 @@ def bokeh_extinction(cHbeta, cHbeta_err, log_extinc, rel_Hbeta):
 
 def trace_diagnostics_plots(trace):
 
-    tabSummary, tabTraces, tabKDE = st.tabs(tabs=['Summary', 'Traces', 'Scatter plot matrix'])
+    tabSummary, tabDistr, tabTraces, tabKDE, tabPriorPost = st.tabs(tabs=['Summary', 'Measurements distributions',
+                                                                           'Traces', 'Scatter plot matrix',
+                                                                           'Prior-Posterior comparison'],
+                                                      on_change="rerun")
+    summary_df = summary(trace)
+    idcs_vars = ~summary_df.index.str.startswith('theo')
+    summary_df = summary_df.loc[idcs_vars]
 
     # Trace plot
     with tabSummary:
 
-        st.space('small')
-        st.markdown(f'Measurements table:')
-        df = summary(trace)
-        st.dataframe(df, column_order=['mean', 'sd', 'hdi_3%', 'hdi_97%', 'r_hat'])
+        st.markdown(f'#### Measurements table:')
+        st.dataframe(summary_df, column_config=PYMC_SUMMARY_COLUMN_CONFIG, width="content")
 
         st.space('small')
-        st.markdown(f'Posterior line flux distributions (color coded by ion) versus observed values (shaded area)')
+        st.markdown(f'#### Posterior flux distributions')
+        st.markdown("These plots compare, for each emission line, the flux distribution predicted by the "
+                    "model against the observed measurement: the vertical line marks the observed flux and "
+                    "the shaded band its uncertainty, with the histograms colored by ion. In a successful "
+                    "fit, the predicted distributions overlap the observed bands; lines whose distributions "
+                    "fall clearly outside their band are poorly reproduced by the model and may point to "
+                    "issues in the measurement or the fitted parameters.")
 
         fig_cfg = None
-        fig = bokeh_flux_grid(trace, in_fig=None, fig_cfg=fig_cfg, n_cols=7)
+        fig = plot_fitted_fluxes(trace, backend='bokeh', in_fig=None, fig_cfg=fig_cfg, n_cols=5)
         streamlit_bokeh(fig)
+
+
+    # Measurements distributions
+    with tabDistr:
+        st.markdown("These plots display the posterior distribution of each parameter, with the mean value "
+                    "and its credible interval marked below. In a successful fit, the distributions are "
+                    "smooth and single-peaked; broad, flat or multi-peaked distributions indicate poorly "
+                    "constrained parameters. For synthetic tests, the vertical line marks the true "
+                    "value, which should fall within the recovered distribution.")
+
+        fig_cfg = {'width': 400, 'height': 200}
+        fig = plot_fitted_params(trace, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
+        streamlit_bokeh(fig)
+
 
     # Scatter plot matrix
     with tabTraces:
-        fig_cfg = {'width': 200, 'height': 100}
-        fig = bokeh_trace(trace, in_fig=None, fig_cfg=fig_cfg)
+        st.markdown("These plots display the overlaid trace distributions (left) and their evolution "
+                    "along the sampling (right). In a successful fit, all chains show a similar "
+                    "distribution and their evolution resembles white noise, without drifts or jumps.")
+
+        fig_cfg = {'width': 400, 'height': 200}
+        fig = plot_traces(trace, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
 
     # Flux grid
     with tabKDE:
-        fig_cfg = None
-        fig = bokeh_scatter_matrix(trace, in_fig=None, fig_cfg=fig_cfg)
+        st.markdown("This figure displays the joint distributions for each pair of parameters, with the "
+                    "marginal distribution of each parameter along the diagonal. A maximum of 6 parameters "
+                    "can be displayed at a time. In a successful fit, the contours are compact and roughly "
+                    "elliptical; elongated or curved shapes indicate correlated or degenerate parameters, "
+                    "whose values cannot be constrained independently.")
+
+        var_selection = st.multiselect('Parameters for the scatter matrix', options=summary_df.index.tolist(),
+                                       default=prioritized_default(summary_df.index.tolist(), n_max=6), max_selections=6,
+                                       help='Choose up to 6 parameters')
+
+        fig_cfg = {'width': 200, 'height': 200}
+        fig = plot_fitted_pairs(trace, var_names=var_selection, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
 
-    # Download data
 
+
+
+    with tabPriorPost:
+        st.markdown("These plots compare, for each parameter, the prior distribution (the assumed range "
+                    "before the fit) against the posterior distribution (the values recovered from the "
+                    "data). In a successful fit, the posterior is much narrower than the prior, showing "
+                    "that the data, and not the initial assumptions, constrain the result. A posterior "
+                    "that closely resembles the prior or piles up against its edges indicates the "
+                    "parameter is not well constrained by the observations.")
+
+        fig_cfg = {'width': 200, 'height': 200}
+        fig = plot_prior_posterior(trace, var_names=var_selection, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
+        streamlit_bokeh(fig)
 
     return
 

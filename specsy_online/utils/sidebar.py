@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit import session_state as s_state
-from .input_output import set_defaults, clear_inputs_button
+from specsy_online.utils.input_output import set_defaults, clear_inputs_button, restore_authentication
 
 from multiprocessing import cpu_count
 from platform import processor
@@ -19,6 +19,9 @@ def get_max_cores() -> int:
 
 
 def sidebar_widgets():
+
+    # Recover login from cookie on page changes
+    restore_authentication()
 
     # Default key values
     set_defaults()

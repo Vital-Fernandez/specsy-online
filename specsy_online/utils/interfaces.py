@@ -33,11 +33,10 @@ FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
 
 FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
 
-INSTRUMENT_LIST = ['sdss', 'osiris', 'isis', 'nirspec', 'cos', 'text']
-
-SURVEY_LIST = ['CEERS', 'CAPERS', 'PID17515']
+INSTRUMENT_LIST = ['sdss', 'text', 'osiris', 'isis', 'nirspec', 'cos', 'lzlcs_miri_merged', 'lzlcs_miri_x1d']
 
 CODE_EXAMPLE_LOAD_SPECTRUM = None
+
 
 def unit_conversion_inputs(column_wave, column_flux, label_wave, label_flux, default_wave_units=None, default_flux_units=None):
 
@@ -86,7 +85,7 @@ def load_collaboration():
            f'Use the widgets below to constrain the files selection.')
     st.write(msg)
 
-    conn = st.connection("capers", type=GSheetsConnection)
+    conn = st.connection("gdrive", type=GSheetsConnection)
     index_list = ['sample', 'id', 'file']
     df = conn.read(ttl=None, index_col=index_list, header=0)
     df.index.names = index_list
@@ -360,25 +359,6 @@ def load_spectrum_tab():
 
             else:
                 st.warning('No spectrum file specified. Please provide one before proceeding.')
-
-    return
-
-
-def select_survey():
-
-    st.title(f'Virtual observatory')
-    st.space()
-    st.write(
-        "You may select a survey from the selection box below. Please note that some research projects may require "
-        "authentication — please contact the project's Principal Investigator (P.I.) for access.")
-
-    col_A, col_B = st.columns([0.25, 0.75], gap='large')
-
-    with col_A:
-        st.selectbox('Survey', SURVEY_LIST, key='survey_selection', help='Some surveys require authentification, '
-                                                                         'please contact the project PI.')
-
-    st.markdown("***")
 
     return
 
@@ -770,42 +750,6 @@ def declare_line_measuring():
             if s_state.lines_df is not None:
                 st.success('Successful upload')
                 st.dataframe(s_state.lines_df)
-
-    return
-
-
-def declare_spectrum_form():
-
-    tab_load, tab_collabs, tab_query = st.tabs(["Load spectrum", "Collaborations", "Query survey"])
-
-    # Load spectrum
-    with tab_load:
-        load_spectrum_tab()
-
-    # Check from collaborations
-    with tab_collabs:
-
-        # Authenticate the user
-        authenticator = stauth.Authenticate(secrets.collaborations.credentials.to_dict(), cookie_name=secrets.cookie.name,
-                                            cookie_key=secrets.cookie.key, cookie_expiry_days=secrets.cookie.expiry_days)
-        authenticator.login(location='main')
-
-        if s_state.get('authentication_status'):
-            st.write(s_state["username"])
-
-            # Give the option to logout
-            authenticator.logout(button_name='Collaboration logout')
-
-    # Query surveys
-    with tab_query:
-        st.write('Not implemented')
-
-    return
-
-
-def handle_change():
-    # Read the updated table from session_state
-    st.session_state.bands_df = st.session_state["bands_df"]
 
     return
 

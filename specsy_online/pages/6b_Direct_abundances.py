@@ -122,7 +122,6 @@ if sstate.get('nebula') is not None:
             # Run the sampler
             sstate['trace'] = None
             make_sampling_callback()
-            # st.json(sstate['nebula'].infer.direct_method.inputs.inputs_merged)
 
             # Save the trace
             sstate['trace'] = sstate['nebula'].infer.direct_method.trace
@@ -139,7 +138,7 @@ if sstate.get('trace') is not None:
             table_name = sstate['id'].replace('.fits', "") + f'_ionization_structure.txt'
         else:
             table_name  = 'ionization_structure.txt'
-        st.download_button(label='Download input', data=sstate['nebula'].infer.direct_method.lines_structure.to_string().encode('UTF-8'),
+        st.download_button(label='Download inputs', data=sstate['nebula'].infer.direct_method.lines_structure.to_string().encode('UTF-8'),
                            file_name=table_name)
 
     with tab_outputs:
@@ -147,7 +146,8 @@ if sstate.get('trace') is not None:
             table_name = sstate['id'].replace('.fits', "") + f'_specsy_measurements.txt'
         else:
             table_name  = 'specsy_measurements.txt'
-        st.download_button(label='Download output', data=summary(sstate['trace']).to_string().encode('UTF-8'),
+        st.download_button(label='Download outputs', data=summary(sstate['trace']).to_string().encode('UTF-8'),
                            file_name=table_name)
 
+    st.space('xsmall')
     trace_diagnostics_plots(sstate['trace'])

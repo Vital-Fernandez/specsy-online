@@ -2,29 +2,17 @@ import streamlit as st
 from streamlit import session_state as s_state, secrets
 
 from specsy_online.utils.sidebar import sidebar_widgets
-from specsy_online.utils.interfaces import  SURVEY_LIST
-from specsy_online.utils.input_output import set_survey_user
-from specsy_online.pages.collaborations.capers import survey_selection
+from specsy_online.utils.input_output import get_authenticator
 from specsy_online.pages.collaborations.stsci import lyc_cos_selection
-from streamlit_authenticator import Authenticate
+from specsy_online.pages.collaborations.observatory_tools import survey_selection, set_survey_user, SURVEY_LIST, authenticated_survey
+
 
 # Page configuration
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
-try:
-    has_collaborations = st.secrets.get('collaborations') is not None
-except Exception:
-    has_collaborations = False
-
-
-
 # Authenticate the user
-if has_collaborations:
-
-    authenticator = Authenticate(secrets.collaborations.credentials.to_dict(),
-                                 cookie_name=secrets.cookie.name,
-                                 cookie_key=secrets.cookie.key,
-                                 cookie_expiry_days=secrets.cookie.expiry_days)
+if st.secrets.get('collaborations', False):
+    authenticator = get_authenticator()
 
     if s_state.get('authentication_status'):
         authenticator.logout(button_name='Collaboration logout', location='sidebar')
@@ -42,33 +30,29 @@ if has_collaborations:
 
     # Select the survey
     with col_A:
-        index = 0 if st.session_state.get('survey_selection') is None else SURVEY_LIST.index(st.session_state['survey_selection'])
+        survey_hold = s_state.get('survey_selection_hold')
+        index = 0 if survey_hold is None else SURVEY_LIST.index(survey_hold)
         survey = st.selectbox('Survey selection', options=SURVEY_LIST, index=index, key='survey_selection',
                               on_change=set_survey_user, args=('survey_selection', authenticator))
 
+    # Survey section
     match survey:
 
         case 'CEERS':
             survey_selection(survey.lower())
 
         case 'CAPERS':
-            authenticator.login(location='main', fields={'Form name': 'CAPERS'})
-            if s_state.get('authentication_status'):
-                if st.session_state.get("name") == 'capers':
-                    survey_selection(survey.lower())
-                else:
-                    st.write(f'Incorrect credentials for {survey} sample. Please logout or change survey selection.')
+            authenticated_survey(authenticator, survey, 'CAPERS', 'capers',
+                                 lambda: survey_selection(survey.lower()))
+
+        case 'LzLCS_MIRI':
+            authenticated_survey(authenticator, survey, 'LzLCS MIRI', 'lzlcs_miri',
+                                 lambda: survey_selection(survey.lower()))
 
         case 'PID17515':
-            authenticator.login(location='main', fields={'Form name': 'Login LyC leakers (COS)'})
-            if s_state.get('authentication_status'):
-                if st.session_state.get("name") == 'PID17515':
-                    lyc_cos_selection()
-                else:
-                    st.write(f'Incorrect credentials for {survey} sample. Please logout or change survey selection.')
-
+            authenticated_survey(authenticator, survey, 'Login LyC leakers (COS)', 'PID17515',
+                                 lyc_cos_selection)
         case _:
             st.write('Project is not recognized')
-
 else:
     st.warning('The current platform does not have access to the collaborations database')
