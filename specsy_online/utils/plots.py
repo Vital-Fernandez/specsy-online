@@ -13,7 +13,8 @@ import streamlit as st
 from streamlit import session_state as s_state
 from streamlit_bokeh import streamlit_bokeh
 from astropy.visualization import ZScaleInterval
-from arviz import summary
+# from arviz import summary
+from arviz_stats import summary
 from bokeh.models import ColumnDataSource, BoxAnnotation
 
 Z_FUNC_CMAP = ZScaleInterval()
@@ -23,7 +24,7 @@ theme_innate.set_style('dark')
 theme_specsy.set_style('dark', library='bokeh')
 
 
-DEFAULT_FIG_CFG = {'width':450, 'height':250, 'active_scroll': None,
+DEFAULT_FIG_CFG = {'width':1600, 'height':1000, 'active_scroll': None,
                    "xaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"},
                    "yaxis": {"axis_label_text_font_size": "16pt", "major_label_text_font_size":"14pt"}}
 
@@ -231,7 +232,7 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
                         show_cont=default_show_cont)
 
     if display_figure:
-        streamlit_bokeh(spec.bokeh.fig, key='input_spec', use_container_width=True)
+        streamlit_bokeh(spec.bokeh.fig, key='input_spec', use_container_width=False)
 
     return spec.bokeh.fig
 
@@ -275,7 +276,7 @@ def LyC_bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=Tru
     if reg_params is not None:
         z_corr = (1 + spec.redshift) if rest_frame else 1
         spec.bokeh.fig.line(reg_params['wave_reg'] / z_corr, reg_params['flux_reg'] * z_corr, legend_label="Voigtfit .reg",
-                       line_color=theme_lime.colors['cont'], line_dash="dashed", line_width=2)
+                            line_color=theme_lime.colors['cont'], line_dash="dashed", line_width=2)
 
     streamlit_bokeh(spec.bokeh.fig, key='input_spec')
 
@@ -327,11 +328,13 @@ def trace_diagnostics_plots(trace):
 
     tabSummary, tabDistr, tabTraces, tabKDE, tabPriorPost = st.tabs(tabs=['Summary', 'Measurements distributions',
                                                                            'Traces', 'Scatter plot matrix',
-                                                                           'Prior-Posterior comparison'],
-                                                      on_change="rerun")
-    summary_df = summary(trace)
+                                                                           'Prior-Posterior comparison'])
+
+    summary_df = summary(trace, round_to='none')
     idcs_vars = ~summary_df.index.str.startswith('theo')
     summary_df = summary_df.loc[idcs_vars]
+    mask = summary_df.index.str.startswith(("temp", "den"))
+    summary_df.loc[mask, ["mean", "sd"]] = summary_df.loc[mask, ["mean", "sd"]].round(0).astype(int)
 
     # Trace plot
     with tabSummary:
@@ -360,7 +363,6 @@ def trace_diagnostics_plots(trace):
                     "smooth and single-peaked; broad, flat or multi-peaked distributions indicate poorly "
                     "constrained parameters. For synthetic tests, the vertical line marks the true "
                     "value, which should fall within the recovered distribution.")
-
         fig_cfg = {'width': 400, 'height': 200}
         fig = plot_fitted_params(trace, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
@@ -375,6 +377,7 @@ def trace_diagnostics_plots(trace):
         fig_cfg = {'width': 400, 'height': 200}
         fig = plot_traces(trace, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
+
 
     # Flux grid
     with tabKDE:
@@ -392,9 +395,7 @@ def trace_diagnostics_plots(trace):
         fig = plot_fitted_pairs(trace, var_names=var_selection, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
 
-
-
-
+    # Posterior versus prior
     with tabPriorPost:
         st.markdown("These plots compare, for each parameter, the prior distribution (the assumed range "
                     "before the fit) against the posterior distribution (the values recovered from the "
@@ -404,7 +405,7 @@ def trace_diagnostics_plots(trace):
                     "parameter is not well constrained by the observations.")
 
         fig_cfg = {'width': 200, 'height': 200}
-        fig = plot_prior_posterior(trace, var_names=var_selection, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
+        fig = plot_prior_posterior(trace, backend='bokeh', in_fig=None, fig_cfg=fig_cfg)
         streamlit_bokeh(fig)
 
     return

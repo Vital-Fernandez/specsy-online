@@ -19,6 +19,20 @@ sidebar_widgets()
 # Page structure
 st.markdown(f'# Line Measuring')
 
+st.markdown("Use the widgets below to measure the line fluxes and fit their profiles. The text block on the right hand side "
+            "allows the user to introduce the [configuration](https://lime-stable.readthedocs.io/en/latest/1_introduction/5_fitting_configuration.html) for the line fittings . "
+            "Please check the  LiME documentation for the [measurements description](https://lime-stable.readthedocs.io/en/latest/3_explanations/0_measurements.html).")
+
+
+with st.expander("Code examples", icon=":material/laptop_windows:"):
+    st.caption("Basic usage")
+    st.code(CODE_FIT_FRAME_BASIC, language="python")
+    st.caption("Filter lines and profile options")
+    st.code(CODE_FIT_FRAME_FILTERED, language="python")
+    st.caption("Advanced fitting options")
+    st.code(CODE_FIT_FRAME_ADVANCED, language="python")
+
+
 # Run the measurement
 tab_fit, tab_upload = st.tabs(['Fit lines', 'Upload measurements'])
 
@@ -197,12 +211,5 @@ if s_state.get('lines_df') is not None:
             table_name  = 'line_measurements_df.txt'
         st.download_button('Download line measurements', data=log_df.to_string().encode('UTF-8'), file_name=table_name)
 
-
 st.write('***')
-with st.expander("Code examples", icon=":material/laptop_windows:"):
-    st.caption("Basic usage")
-    st.code(CODE_FIT_FRAME_BASIC, language="python")
-    st.caption("Filter lines and profile options")
-    st.code(CODE_FIT_FRAME_FILTERED, language="python")
-    st.caption("Advanced fitting options")
-    st.code(CODE_FIT_FRAME_ADVANCED, language="python")
+

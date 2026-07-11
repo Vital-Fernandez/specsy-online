@@ -7,8 +7,10 @@ from specsy_online.utils.interfaces import (ionization_structure_interface, samp
                                             prior_configuration_widget, extinction_parameters_dm)
 from specsy_online.utils.plots import trace_diagnostics_plots
 from specsy import Nebula, cfg as specsy_cfg
+from specsy.io import load_emis_grid
 from arviz import summary
 from lime import load_frame
+
 
 
 def excluded_lines(df, struct_dict):
@@ -74,7 +76,8 @@ if st.button("Prepare model"):
         else:
             obj = Nebula.from_structure_table(sstate['lines_df'])
 
-        obj.infer.direct_method.prepare_inputs(emissivity_source=load_emiss_dataset(), prior_cfg=prior_cfg,
+        # Preload the emissivity grids as the data is accessed
+        obj.infer.direct_method.prepare_inputs(prior_cfg=prior_cfg,
                                                normalize_flux=sstate['norm_check'],
                                                review_model=False,
                                                R_V=sstate['Rv_dm'],
@@ -82,10 +85,8 @@ if st.button("Prepare model"):
                                                norm_line=sstate['norm_line_dm'],
                                                kinematic_component=sstate.get('kinem_order_specsy', 0),
                                                exclude_merged=sstate['merged_toggle'])
-        # st.write(sstate['merged_toggle'])
         # Check the data is valid
         message = obj.infer.direct_method._review_inputs(return_message=True)
-        # message = []
 
         if len(message) == 0:
             sstate['nebula'] = obj

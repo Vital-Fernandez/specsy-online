@@ -15,17 +15,18 @@ st.markdown("Use the widgets below to upload an spectrum from a **.fits** from t
             "text file (**.txt**, **.csv**). Please check the [documentation](https://lime-stable.readthedocs.io/en/latest/2_guides/0_creating_observations.html) "
             "for more examples on how to load spectroscopic data")
 
+# Code example
+with st.expander("Code examples", icon=":material/laptop_windows:"):
+    st.caption("Load from arrays")
+    st.code(CODE_ARRAYS_OBSERVATION, language="python")
+    st.caption("Load from a FITS file")
+    st.code(CODE_FROM_FILE_OBSERVATION, language="python")
+
 # Configuration menu
+st.write('***')
 with st.container(key='este'):
     load_spectrum_tab()
 
 # Show the input data
 display_menu()
 
-# Code example
-st.write('***')
-with st.expander("Code examples", icon=":material/laptop_windows:"):
-    st.caption("Load from arrays")
-    st.code(CODE_ARRAYS_OBSERVATION, language="python")
-    st.caption("Load from a FITS file")
-    st.code(CODE_FROM_FILE_OBSERVATION, language="python")

@@ -21,9 +21,6 @@ To upgrade to the latest version:
 pip install --upgrade specsy-online
 ```
 
-Depending on the operating system, the selection of the PyMC sampler backend for the chemical analysis may have a 
-dramatic impact on the compilation speed of the sampler. It is recommended that the user tests different backends.
-
 ## Usage
 
 Launch the browser interface based on Streamlit by running on the terminal:

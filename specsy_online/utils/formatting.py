@@ -77,7 +77,7 @@ import lime
 # Restrict to hydrogen and oxygen transitions with a wider velocity band
 bands = spec.retrieve.lines_frame(particle_list=["H1", "O3"], band_vsigma=120)
 
-# Use a fitting configuration to resolve blended lines
+# Read the bands configuration from a configuration file
 bands = spec.retrieve.lines_frame(fit_cfg="./my_cfg.toml")
 """
 

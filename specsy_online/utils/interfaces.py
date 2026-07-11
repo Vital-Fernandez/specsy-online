@@ -33,7 +33,7 @@ FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
 
 FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
 
-INSTRUMENT_LIST = ['sdss', 'text', 'osiris', 'isis', 'nirspec', 'cos', 'lzlcs_miri_merged', 'lzlcs_miri_x1d']
+INSTRUMENT_LIST = ['sdss', 'text', 'osiris', 'isis', 'nirspec', 'nirspec_grizli', 'cos', 'lzlcs_miri_merged', 'lzlcs_miri_x1d']
 
 CODE_EXAMPLE_LOAD_SPECTRUM = None
 
