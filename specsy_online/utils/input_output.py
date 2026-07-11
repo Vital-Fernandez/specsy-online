@@ -3,7 +3,7 @@ import streamlit_authenticator as stauth
 import streamlit.components.v1 as components
 
 from streamlit import session_state as s_state, secrets
-
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from os import cpu_count
 from pathlib import Path
@@ -107,28 +107,16 @@ def widget_save_state(param):
 
 
 
-#
-# def authenticate_method(credential_dict=None):
-#
-#     if credential_dict is None:
-#         credential_dict = secrets.collaborations.credentials.to_dict()
-#
-#     return stauth.Authenticate(credential_dict, cookie_name=secrets.cookie.name, cookie_key=secrets.cookie.key,
-#                                cookie_expiry_days=secrets.cookie.expiry_days)
-#
-#
-# def restore_authentication():
-#
-#     # Recover the login from the re-authentication cookie on pages without a login form
-#     if st.secrets.get('collaborations', False):
-#         if s_state.get('authentication_status') is None:
-#             authenticator = authenticate_method()
-#             authenticator.login(location='unrendered')
-#
-#     return
+def check_secrets():
+    try:
+        len(st.secrets)
+        return True
+    except StreamlitSecretNotFoundError:
+        return False
 
 def get_authenticator():
 
+    check_secrets()
     if s_state.get('authenticator') is None:
         s_state['authenticator'] = stauth.Authenticate(secrets.collaborations.credentials.to_dict(),
                                                        cookie_name=secrets.cookie.name,
@@ -141,9 +129,10 @@ def get_authenticator():
 def restore_authentication():
 
     # Recover the login from the re-authentication cookie on pages without a login form
-    if st.secrets.get('collaborations', False):
-        if s_state.get('authentication_status') is None:
-            get_authenticator().login(location='unrendered')
+    if check_secrets():
+        if st.secrets.get('collaborations', False):
+            if s_state.get('authentication_status') is None:
+                get_authenticator().login(location='unrendered')
 
     return
 
@@ -159,18 +148,21 @@ def clear_inputs_state(reset_defaults=True):
     return
 
 
-def clear_inputs_button():
-    st.button('Clear input data', on_click=clear_inputs_state, icon=":material/delete:")
-    return
-
-
-def clear_obj_data():
+def clear_obj_data(event=None):
 
     for item in ['spec', 'id', 'redshift', 'bands_df', 'lines_df']:
         s_state[item] = None
         s_state[f'{item}_hold'] = None
 
     return
+
+
+def clear_inputs_button():
+    st.button('Clear input data', on_click=clear_inputs_state, icon=":material/delete:")
+    return
+
+
+
 
 
 def parse_toml_input(toml_text):
