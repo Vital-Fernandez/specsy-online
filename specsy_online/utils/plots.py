@@ -191,7 +191,7 @@ def matplotlib_bands(spec_key, line, bands=None, fig_cfg=None, exclude_continua=
     _colsA, colB, _colC = st.columns([0.2, 0.6, 0.2])
 
     with colB:
-        st.pyplot(fig, transparent=True, use_container_width=True)
+        st.pyplot(fig, transparent=True, width='stretch')
 
     return
 
@@ -232,7 +232,7 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
                         show_cont=default_show_cont)
 
     if display_figure:
-        streamlit_bokeh(spec.bokeh.fig, key='input_spec', use_container_width=False)
+        streamlit_bokeh(spec.bokeh.fig, key='input_spec', width='content')
 
     return spec.bokeh.fig
 

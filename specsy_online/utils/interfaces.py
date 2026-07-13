@@ -258,7 +258,7 @@ def load_spectrum_tab():
             cfg = get_instrument_cfg()
             for label, df in cfg.items():
                 st.caption(label)
-                st.dataframe(df, hide_index=True, use_container_width=True)
+                st.dataframe(df, hide_index=True, width='stretch')
 
         with st.expander(label='Text file properties', expanded=False, icon=":material/docs:"):
             col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
@@ -526,7 +526,7 @@ def fitcfg_band_settings(def_linelist, default_particle_list, def_df, wave_rest)
     st.markdown(f'Generate a list of line groups from the selected particles')
     in_df = def_df if len(s_state['ion_list']) == 0 else def_df.loc[def_df.particle.isin(s_state['ion_list'])]
 
-    st.button(label="Predict merged|blended line groups", on_click=prepare_default, args=(wave_rest, in_df), use_container_width=True)
+    st.button(label="Predict merged|blended line groups", on_click=prepare_default, args=(wave_rest, in_df), width='stretch')
 
     # Kinematic components row
     st.markdown(f'Add a broad kinematic components configuration entries for the selected lines')
@@ -537,7 +537,7 @@ def fitcfg_band_settings(def_linelist, default_particle_list, def_df, wave_rest)
         st.multiselect(label="Select lines", options=in_lines, placeholder="Select lines",
                        key="selected_lines", label_visibility="collapsed")
     with colB:
-        st.button(label="Broad components", on_click=add_kinematic_components, use_container_width=True)
+        st.button(label="Broad components", on_click=add_kinematic_components, width='stretch')
 
 
     colC, colD, colE = st.columns([0.4, 0.1, 0.5])
@@ -551,7 +551,7 @@ def fitcfg_band_settings(def_linelist, default_particle_list, def_df, wave_rest)
                         label_visibility="collapsed")
     with colE:
         st.space(25)
-        st.button(label="Bands velocity dispersion", on_click=add_vsigma_components, use_container_width=True)
+        st.button(label="Bands velocity dispersion", on_click=add_vsigma_components, width="stretch")
 
     # Toggle to add groups generated to
     col_toggleA, col_toggleB, _ = st.columns([0.3, 0.3, 0.4])

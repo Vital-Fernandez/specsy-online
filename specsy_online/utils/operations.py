@@ -51,10 +51,10 @@ def structure_manager(region_label, lines_df, norm_line):
         if len(sstate.get(f"region_{label}_exclude", [])) > 0:
             struct_dict[f"region_{label}_exclude"] = sstate.get(f"region_{label}_exclude")
 
-        if struct_dict['region'][f'r{idx}']['temp_eq'] is 'None':
+        if struct_dict['region'][f'r{idx}']['temp_eq'] == 'None': # TODO becarefull
             struct_dict['region'][f'r{idx}']['temp_eq'] = None
 
-        if struct_dict['region'][f'r{idx}']['den_eq'] is 'None':
+        if struct_dict['region'][f'r{idx}']['den_eq'] == 'None': # TODO becarefull
             struct_dict['region'][f'r{idx}']['den_eq'] = None
 
     if not lines_df.index.isin([norm_line]).any():
