@@ -14,7 +14,7 @@ from specsy import extinction_coeff_calc
 from specsy.models.literature import TEM_FUNC_DICT, DEN_FUNC_DICT
 
 from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
-                                              widget_text_to_list, on_bands_edit, clear_obj_data, widget_save_state, parse_fit_cfg,
+                                              widget_text_to_list, on_bands_edit, clear_obj_data, is_streamlit_cloud, parse_fit_cfg,
                                               save_objSample, get_instrument_cfg, on_toml_change)
 
 
@@ -1124,7 +1124,7 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
 def sampler_cfg_widget():
 
     cores_max = cpu_count() or 1
-    cores_recommended = max((1, cores_max - 4))
+    cores_recommended =  2 if is_streamlit_cloud() else max((1, cores_max - 4))
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:

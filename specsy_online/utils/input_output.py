@@ -226,9 +226,19 @@ def get_sampler_backends() -> dict[str, str | None]:
     }
 
 
+
+def is_streamlit_cloud() -> bool:
+    try:
+        headers = st.context.headers
+    except Exception:
+        return False
+    if not headers:
+        return False
+    return headers.get("Host", "").endswith(".streamlit.app")
+
 @st.cache_data
 def get_device_info() -> dict:
-    info = {"cpu_cores": cpu_count()}
+    info = {"cpu_cores": 2 if is_streamlit_cloud() else cpu_count()}
 
     try:
         import jax
