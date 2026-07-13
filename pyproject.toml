@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy-online"
-version = "0.10.1"
+version = "0.10.2"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = {text = "GPL-3.0-or-later"}
@@ -32,4 +32,6 @@ include = ["specsy_online*"]
 [tool.setuptools.package-data]
 specsy_online = ["resources/data/*",
                  "resources/images/*",
-                 ".streamlit/config.toml"]
+                 ".streamlit/config.toml",
+                 "pages/collaborations/survey_cfg.toml"]
+

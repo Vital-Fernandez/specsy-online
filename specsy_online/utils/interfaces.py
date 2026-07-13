@@ -1101,19 +1101,18 @@ def ionization_structure_interface(obs_df, TEM_DICT = {'eqT1': None, 'eqT2': Non
             select_box_msg = "Tied to region ->"
 
             with c3:
-                temp_mode = st.selectbox(label="Temperature mode", options=["free", "tied"],
+                temp_mode = st.selectbox(label="Temp. mode", options=["free", "tied"],
                                          key=f"region_{region_name}_temp_mode")
                 if temp_mode == "tied":
-                    options = REGION_LABELS[n_regions] + ['relation']
+                    options = REGION_LABELS[n_regions].copy()
                     options.remove(region_name)
                     st.selectbox(label=select_box_msg, options=options, key=f"region_{region_name}_temp_tied_to")
-                    st.selectbox(label="Temperature equation", options=['None'] + list(TEM_FUNC_DICT.keys()), key=f"region_{region_name}_temp_relation")
+                    st.selectbox(label="Temp. eq.", options=['None'] + list(TEM_FUNC_DICT.keys()), key=f"region_{region_name}_temp_relation")
 
             with c4:
-                den_mode = st.selectbox(label="Density mode", options=["free", "tied"],
-                                        key=f"region_{region_name}_den_mode")
+                den_mode = st.selectbox(label="Den. mode", options=["free", "tied"],  key=f"region_{region_name}_den_mode")
                 if den_mode == "tied":
-                    options = REGION_LABELS[n_regions] + ['relation']
+                    options = REGION_LABELS[n_regions].copy()
                     options.remove(region_name)
                     st.selectbox(label=select_box_msg, options=options, key=f"region_{region_name}_den_tied_to")
                     st.selectbox(label="Relation", options=['None'] + list(DEN_FUNC_DICT.keys()), key=f"region_{region_name}_den_relation")
