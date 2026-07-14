@@ -232,7 +232,7 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
                         show_cont=default_show_cont)
 
     if display_figure:
-        streamlit_bokeh(spec.bokeh.fig, key='input_spec', width='content')
+        streamlit_bokeh(spec.bokeh.fig, key='input_spec', use_container_width=True)
 
     return spec.bokeh.fig
 
