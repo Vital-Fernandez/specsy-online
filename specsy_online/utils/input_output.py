@@ -265,9 +265,8 @@ def get_device_info() -> dict:
 
 @st.cache_data
 def load_spectrum(input_file, instrument, redshift, norm_flux, units_wave_in=None, units_flux_in=None,
-                  crop_waves=None, crop_flux=None, id_label=None, delimiter=None,
-                  comments='#', skiprows=1, usecols=None, wave_units_out=None,
-                  flux_units_out=None):
+                  crop_waves=None, crop_flux=None, id_label=None, delimiter=None, comments='#', skiprows=1,
+                  usecols=None, wave_units_out=None, flux_units_out=None):
 
 
     # Unit conversion if necessary
@@ -355,21 +354,10 @@ def parse_fit_cfg(conf_string):
     return parse_lime_cfg(dict_toml)
 
 
-# @st.cache_data
-# def parse_frame_normalization(df):
-#     return load_frame_sy(df, flux_type='profile', norm_line='H1_4861A')
-
-
-@st.cache_data
-def get_text_spectrum(spec_key):
-    recarray = s_state[spec_key].save_spectrum()
-    return DataFrame.from_records(recarray)
-
-
-@st.cache_data
-def convert_for_download(df):
-    return df.to_csv(index=False).encode("utf-8")
-
+def make_spectrum_txt(spec, **kwargs):
+    buffer = StringIO()
+    spec.save_spectrum(buffer, **kwargs)   # same savetxt output, header and footer included
+    return buffer.getvalue()
 
 # def user_logging():
 #

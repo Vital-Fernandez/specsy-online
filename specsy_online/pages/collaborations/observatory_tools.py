@@ -544,7 +544,8 @@ def fetch_observation(survey, data_survey, obj, df_selection, idx_1D, file1d, fl
                                                                 label_wave='Wavelength units out',
                                                                 label_flux='Flux units out',
                                                                 default_wave_units='Angstrom',
-                                                                default_flux_units='FLAM')
+                                                                default_flux_units='FLAM',
+                                                                key_label='out')
 
         # Run the query
         st.write('')

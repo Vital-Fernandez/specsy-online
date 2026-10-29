@@ -60,16 +60,13 @@ with st.expander("Tools references", icon=":material/handyman:"):
     )
 
 with st.expander("Data references", icon=":material/import_contacts:"):
-    st.markdown(
-        """
-        **(PyNeb) Luridiana, V., Morisset, C., & Shaw, R. A.(2015).**   
-        *[PyNeb: A new tool for analyzing emission lines.](https://www.aanda.org/articles/aa/full_html/2015/01/aa23152-13/aa23152-13.html)*  
+    st.markdown("""
+    **PyNeb**: Luridiana, V., Morisset, C., & Shaw, R. A. (2015).  
+    *[PyNeb: A new tool for analyzing emission lines.](https://www.aanda.org/articles/aa/full_html/2015/01/aa23152-13/aa23152-13.html)*
 
-        **Chatzikos, M., Bianchi, S., Camilloni, F., et al. (2023).**  
-        *[The 2023 release of Cloudy.](https://arxiv.org/abs/2308.06396)*  
-        """,
-
-        unsafe_allow_html=True)
+    **Cloudy**: Chatzikos, M., Bianchi, S., Camilloni, F., et al. (2023).  
+    *[The 2023 release of Cloudy.](https://arxiv.org/abs/2308.06396)*
+    """)
 
 with st.expander("Dependencies installed", icon=":material/package_2:"):
     versions = get_versions()

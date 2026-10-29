@@ -1,41 +1,71 @@
-import streamlit as st
+from pathlib import Path
 from os import cpu_count
 from time import time
-from streamlit import session_state as s_state,secrets
-import streamlit_authenticator as stauth
+
+import streamlit as st
+from streamlit import session_state as s_state
 from streamlit_gsheets import GSheetsConnection
-from numpy import argsort, random, floor, ceil, intersect1d, sum, array, sort, searchsorted, min, max
-from pyneb import RedCorr
+from numpy import argsort, random, floor, ceil, intersect1d, sum, array, searchsorted, min, max
 from pandas import DataFrame
+from pyneb import RedCorr
 from lime.io import parse_lime_cfg
 from lime.transitions import au, Line
 from lime.retrieve.line_bands import get_spectrum_line_groups
 from specsy import extinction_coeff_calc
 from specsy.models.literature import TEM_FUNC_DICT, DEN_FUNC_DICT
-
-from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, get_text_spectrum, convert_for_download,
-                                              widget_text_to_list, on_bands_edit, clear_obj_data, is_streamlit_cloud, parse_fit_cfg,
+from specsy_online.utils.input_output import (save_state, load_spectrum, parse_line_bands_df, make_spectrum_txt,
+                                              widget_text_to_list, clear_obj_data, is_streamlit_cloud, parse_fit_cfg,
                                               save_objSample, get_instrument_cfg, on_toml_change)
 
 
-from specsy_online.utils.tools import dynamic_input_data_editor
 from specsy_online.utils.plots import bokeh_spectrum, bokeh_extinction, plot_bokeh_bands
 from lime.archives.read_fits import SPECTRUM_FITS_PARAMS
 from specsy_online.utils.formatting import REGION_TAGS_STYLE, REGION_LABELS, card_formating
 import tomlkit
 
-from specsy.plotting.bokeh_functions import bokeh_trace, bokeh_scatter_matrix, bokeh_flux_grid
 
 FIT_CFG_PLACEHOLDER = ('[default_line_fitting]\n'
                        'H1_6563A_b="H1_6563A+N2_6583A+N2_6548A"\n'
                        'N2_6548A_amp="expr:N2_6584A_amp/2.94"\n'
                        'N2_6548A_kinem="N2_6584A"')
 
+EXTINCTION_LAW_NAMES = {
+    "Cardelli, Clayton & Mathis (1989)": "CCM89",
+    "Cardelli, Clayton & Mathis (1989), Blagrave (2007) UV": "CCM89 Bal07",
+    "Cardelli, Clayton & Mathis (1989), O'Donnell (1994) opt/NIR": "CCM89 oD94",
+    "Seaton (1979) / Howarth (1983) / Cardelli et al. (1989)": "S79 H83 CCM89",
+    "Kaler (1976), relative to H-beta": "K76",
+    "Savage & Mathis (1979), Galactic": "SM79 Gal",
+    "Gordon et al. (2003), LMC average": "G03 LMC",
+    "Misselt, Clayton & Gordon (1999) / Fitzpatrick & Massa (1990), LMC": "MCC99 FM90 LMC",
+    "Fitzpatrick & Massa (1990)-like, custom parameters": "F99-like",
+    "Fitzpatrick (1999)": "F99",
+    "Fitzpatrick & Massa (1988) UV / Fitzpatrick (1999) opt-IR, LMC": "F88 F99 LMC",
+    "Calzetti et al. (2000), starburst": "Cal00",
+}
+
 FIT_CFG_HELP = 'Please check LiMe documentation to read more on how to adjusts your fittings'
 
 INSTRUMENT_LIST = ['sdss', 'text', 'osiris', 'isis', 'nirspec', 'nirspec_grizli', 'cos', 'lzlcs_miri_merged', 'lzlcs_miri_x1d']
 
+SPEC_TYPES = ['fits', 'fit', 'fts', 'fz', 'gz',              # FITS (and compressed)
+              'txt', 'csv', 'dat', 'tsv', 'asc', 'ascii', 'text', 'tbl']
+
 CODE_EXAMPLE_LOAD_SPECTRUM = None
+
+
+def instrument_select_box_adjustment():
+    st.html("""
+    <style>
+    .st-key-instr_selection [data-baseweb="select"] > div,
+    .st-key-instr_selection [role="combobox"],
+    .st-key-instr_selection div:has(> input[role="combobox"]) {
+        min-height: 4.25rem !important;   /* tune to match the uploader dropzone */
+        align-items: center;
+    }
+    </style>
+    """)
+    return
 
 
 def unit_conversion_inputs(column_wave, column_flux, label_wave, label_flux, default_wave_units=None, default_flux_units=None):
@@ -186,9 +216,7 @@ def extinction_form(df_key):
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                reddening_laws = ["CCM89", "CCM89 Bal07", "CCM89 oD94", "S79 H83 CCM89","K76","SM79 Gal", "G03 LMC",
-                                  "MCC99 FM90 LMC", "F99-like", "F99","F88 F99 LMC"]
-                law = st.selectbox("Reddening Law", reddening_laws)
+                law = st.selectbox("Reddening Law", EXTINCTION_LAW_NAMES.keys())
 
             with col2:
                 R_V = st.number_input("Rᵥ", min_value=0.0, value=3.1, step=0.1)
@@ -207,10 +235,10 @@ def extinction_form(df_key):
                 st.write('***')
                 st.write('## Results')
                 st.write("")
-                cHbeta, cHbeta_err, log_extinc = extinction_coeff_calc(lines_df, norm_line, R_V, law, tem, den, rel_Hbeta=Hbeta_conv_check,
+                cHbeta, cHbeta_err, log_extinc = extinction_coeff_calc(lines_df, norm_line, R_V, EXTINCTION_LAW_NAMES[law], tem, den, rel_Hbeta=Hbeta_conv_check,
                                                            flux_column=flux_column, line_list=input_list, exclude_list=exclude_list)
 
-                red_cor = RedCorr(R_V=R_V, law=law, cHbeta=cHbeta)
+                red_cor = RedCorr(R_V=R_V, law=EXTINCTION_LAW_NAMES[law], cHbeta=cHbeta)
 
                 out1, out2, out3 = st.columns([0.27, 0.32, 0.25])
                 with out1:
@@ -239,19 +267,15 @@ def extinction_form(df_key):
 
 def load_spectrum_tab():
 
-    st.markdown(f'#### File properties')
-    col_A, col_B = st.columns([0.25, 0.75], gap='large')
+    st.markdown(f'### File upload')
+    col_A, col_B = st.columns([0.50, 0.50], gap='large')
 
     # Instrument
     with col_A:
-        message_help = 'Please contact the author if your instrument is not supported with an example file.'
-        instrument = st.selectbox('Instrument', INSTRUMENT_LIST, key='instr_selection', help=message_help)
 
-    # File
-    with col_B:
-        message_help = 'The text file must follow the expect format'
-        uploaded_file = st.file_uploader(label='Spectrum file browser', type=['.fits', '.txt', '.csv'],
-                                         accept_multiple_files=False, key='spec_uploader', help=message_help)
+        instrument_select_box_adjustment()
+        message_help = 'Please contact the author if your instrument is not supported with an example file.'
+        instrument = st.selectbox('Instrument selection', INSTRUMENT_LIST, key='instr_selection', help=message_help)
 
         # Instrument configuration
         with st.expander("Default instrument file settings", icon=":material/satellite_alt:"):
@@ -260,8 +284,15 @@ def load_spectrum_tab():
                 st.caption(label)
                 st.dataframe(df, hide_index=True, width='stretch')
 
+    # File
+    with col_B:
+        message_help = 'The text file must follow the expect format'
+        uploaded_file = st.file_uploader(label='File selection', type=SPEC_TYPES, accept_multiple_files=False,
+                                         key='spec_uploader', help=message_help)
+
+
         with st.expander(label='Text file properties', expanded=False, icon=":material/docs:"):
-            col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
+            col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='medium')
 
             with col_A:
                 message_help = 'Delimiter between columns'
@@ -276,10 +307,10 @@ def load_spectrum_tab():
                 skiprows = st.number_input('Skip rows', value=0, help=message_help)
 
             with col_D:
-                message_help = 'Columns to use in text file.'
-                usecols = st.text_input('Use columns rows', value=None, placeholder="0,3,4", help=message_help)
+                message_help = 'Columns index to read from the text file.'
+                usecols = st.text_input('Columns', value=None, placeholder="0,3,4", help=message_help)
 
-    st.markdown(f'#### Observation properties')
+    st.markdown(f'### Observation properties')
     col_A, col_B, col_C, col_D = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
 
     # Redshift
@@ -293,9 +324,7 @@ def load_spectrum_tab():
         norm_flux_string = st.text_input('Normalization flux', value=None, help=message_help)
 
     # Input wavelength and flux units
-    wave_units_in, flux_units_in= unit_conversion_inputs(col_C, col_D, 'Wavelength units in', 'Flux units in',
-                                                         SPECTRUM_FITS_PARAMS[instrument]['units_wave'],
-                                                         SPECTRUM_FITS_PARAMS[instrument]['units_flux'])
+    wave_units_in, flux_units_in= unit_conversion_inputs(col_C, col_D, 'Wavelength units in', 'Flux units in')
 
     col_E, col_F, col_G, col_H = st.columns([0.25, 0.25, 0.25, 0.25], gap='large')
 
@@ -334,7 +363,7 @@ def load_spectrum_tab():
     with st.form('load_spec_form', border=False, enter_to_submit=False, clear_on_submit=False):
 
         # submitted = st.button("Load observation")
-        submitted = st.form_submit_button("Get spectrum")
+        submitted = st.form_submit_button("Generate observation")
 
         if submitted:
 
@@ -346,8 +375,7 @@ def load_spectrum_tab():
                     clear_obj_data()
 
                     spec = load_spectrum(uploaded_file, instrument, z_string, norm_flux_string, wave_units_in, flux_units_in,
-                                         crop_waves, crop_flux,
-                                         uploaded_file.name, separator, comments, skiprows, usecols,
+                                         crop_waves, crop_flux, uploaded_file.name, separator, comments, skiprows, usecols,
                                          wave_units_out, flux_units_out)
 
                     save_state('id', uploaded_file.name)
@@ -921,10 +949,10 @@ def display_menu():
             bokeh_spectrum('spec')
 
             # Download
-            rec_arr = get_text_spectrum('spec')
-            csv = convert_for_download(rec_arr)
-            st.download_button(label="Download as .txt", data=csv, file_name="spectrum.csv", mime="text/csv",
-                               icon=":material/download:")
+            spec = s_state['spec']
+            st.download_button(label="Download as .txt", mime="text/plain", icon=":material/download:",
+                               file_name=f"{"spectrum" if spec.label is None else Path(spec.label).stem}.txt",
+                               data=lambda: make_spectrum_txt(spec))
 
         elif s_state['obs_type'] == 'collaboration':
             if s_state["username"] == 'capers':

@@ -13,5 +13,3 @@ st.markdown(f'Using the menu below to calculate the gas extinction from the hydr
 
 if s_state['lines_df'] is not None:
     extinction_form('lines_df')
-    # try: extinction_form('lines_df')
-    # except Exception as e: st.error(f"An error occurred: {e}")

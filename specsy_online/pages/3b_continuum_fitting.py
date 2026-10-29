@@ -128,4 +128,4 @@ if spec is not None:
 else:
     st.markdown(f'### No observation available')
     st.page_link("pages/1a_Load_spectrum.py", label='Please load an spectrum :yellow[**(link)**]', icon=":material/upload:")
-    st.page_link("pages/1a_Load_spectrum.py", label='or get an observation from the virtual observatory page :yellow[**(link)**]', icon=":material/archive:")
+    st.page_link("pages/1b_Load_collaboration.py", label='or get an observation from the virtual observatory page :yellow[**(link)**]', icon=":material/archive:")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specsy-online"
-version = "0.10.3"
+version = "0.11.0"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = {text = "GPL-3.0-or-later"}
@@ -16,8 +16,9 @@ authors = [{name = "Vital Fernández", email = "vgf@stsci.edu"}]
 description = "Streamlit wrapper for Specsy functions"
 
 dependencies = ["specsy[full]~=0.10.0",
-                "streamlit~=1.58.0",
-                "streamlit_bokeh>=3.9",
+                "streamlit~=1.65.0",
+                "uvicorn",
+                "starlette",
                 "streamlit-authenticator==0.4.2",
                 "st-gsheets-connection~=0.1",
                 "google-api-python-client~=2.198.0"]

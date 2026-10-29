@@ -213,7 +213,7 @@ def bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=True, d
 
     with col2:
         log_scale = st.checkbox("Log scale", value=False, key='log_scale_check',
-                                help='Display the spectrum in logaritmic scale.')
+                                help='Display the spectrum in logarithmic scale.')
 
     with col3:
         comps_scale = st.checkbox("Show Components", value=default_components, key='components_check',
@@ -254,7 +254,7 @@ def LyC_bokeh_spectrum(spec_key, bands=None, fig_cfg=None, default_show_fits=Tru
 
     with col2:
         log_scale = st.checkbox("Log scale", value=False, key='log_scale_check',
-                                help='Display the spectrum in logaritmic scale.')
+                                help='Display the spectrum in logarithmic scale.')
 
     with col3:
         comps_scale = st.checkbox("Show Components", value=default_components, key='components_check',
